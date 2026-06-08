@@ -7,6 +7,14 @@ export interface DecorApi {
   onDmx: (cb: (pkt: { universe: number; sequence: number; data: Uint8Array }) => void) => void
   /** Publish an RGBA frame to the Syphon server. */
   publishFrame: (width: number, height: number, buffer: Uint8ClampedArray) => void
+  /** Toggle the fullscreen preview window; resolves to the new open state. */
+  togglePreview: () => Promise<boolean>
+  /** Notified when the preview window opens (true) or closes (false). */
+  onPreviewActive: (cb: (active: boolean) => void) => void
+  /** Push the current chart to the preview window. */
+  sendChart: (chart: unknown) => void
+  /** Receive chart updates (preview window). */
+  onChartUpdate: (cb: (chart: unknown) => void) => void
 }
 
 declare global {

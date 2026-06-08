@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, screen } from 'electron'
 import { join, extname } from 'path'
 import { readFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -12,15 +12,14 @@ import { OutputPublisher } from './output/syphon-publisher'
 const receiver = new ArtNetReceiver()
 const publisher = new OutputPublisher()
 let mainWindow: BrowserWindow | null = null
+let previewWindow: BrowserWindow | null = null
+let lastChart: unknown = null
 
 function startEngine(): void {
   publisher.start('DECOR STUDIO')
   receiver.on('dmx', (pkt: ArtDmxPacket) => {
-    mainWindow?.webContents.send('artnet:dmx', {
-      universe: pkt.universe,
-      sequence: pkt.sequence,
-      data: pkt.data
-    })
+    const msg = { universe: pkt.universe, sequence: pkt.sequence, data: pkt.data }
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.send('artnet:dmx', msg)
   })
   receiver.on('error', (err) => console.error('[artnet] receiver error:', err))
   receiver.start('0.0.0.0')
@@ -30,6 +29,46 @@ function startEngine(): void {
 function stopEngine(): void {
   receiver.stop()
   publisher.stop()
+}
+
+/** Fullscreen output preview on a second display (mirrors the editor's chart, no re-publish). */
+function openPreview(): void {
+  if (previewWindow && !previewWindow.isDestroyed()) {
+    previewWindow.focus()
+    return
+  }
+  const displays = screen.getAllDisplays()
+  const target = displays[displays.length - 1]
+  const b = target.bounds
+  previewWindow = new BrowserWindow({
+    x: b.x,
+    y: b.y,
+    width: b.width,
+    height: b.height,
+    frame: false,
+    fullscreen: displays.length > 1,
+    backgroundColor: '#000',
+    autoHideMenuBar: true,
+    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false }
+  })
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    previewWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '?output&live')
+  } else {
+    previewWindow.loadFile(join(__dirname, '../renderer/index.html'), { search: 'output&live' })
+  }
+  previewWindow.webContents.on('did-finish-load', () => {
+    if (lastChart) previewWindow?.webContents.send('chart:update', lastChart)
+  })
+  previewWindow.on('closed', () => {
+    previewWindow = null
+    mainWindow?.webContents.send('preview:active', false)
+  })
+  mainWindow?.webContents.send('preview:active', true)
+}
+
+function closePreview(): void {
+  if (previewWindow && !previewWindow.isDestroyed()) previewWindow.close()
+  previewWindow = null
 }
 
 function createWindow(): void {
@@ -90,6 +129,20 @@ app.whenReady().then(() => {
       publisher.publishRGBA(payload.width, payload.height, payload.buffer)
     }
   )
+
+  // Fullscreen preview window toggle + chart mirroring to it.
+  ipcMain.handle('preview:toggle', () => {
+    if (previewWindow && !previewWindow.isDestroyed()) {
+      closePreview()
+      return false
+    }
+    openPreview()
+    return true
+  })
+  ipcMain.on('chart:sync', (_e, chart) => {
+    lastChart = chart
+    previewWindow?.webContents.send('chart:update', chart)
+  })
 
   createWindow()
   startEngine()

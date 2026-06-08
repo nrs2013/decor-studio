@@ -9,6 +9,15 @@ const api = {
   },
   publishFrame: (width: number, height: number, buffer: Uint8ClampedArray): void => {
     ipcRenderer.send('syphon:frame', { width, height, buffer })
+  },
+  // Fullscreen preview window (output on a second display).
+  togglePreview: (): Promise<boolean> => ipcRenderer.invoke('preview:toggle'),
+  onPreviewActive: (cb: (active: boolean) => void): void => {
+    ipcRenderer.on('preview:active', (_e, v) => cb(v))
+  },
+  sendChart: (chart: unknown): void => ipcRenderer.send('chart:sync', chart),
+  onChartUpdate: (cb: (chart: unknown) => void): void => {
+    ipcRenderer.on('chart:update', (_e, c) => cb(c))
   }
 }
 

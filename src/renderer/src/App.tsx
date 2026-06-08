@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Toolbar } from './editor/Toolbar'
 import { SubBar } from './editor/SubBar'
 import { EditorCanvas } from './editor/EditorCanvas'
@@ -6,12 +7,60 @@ import { PatchTable } from './editor/PatchTable'
 import { LiveView } from './output/LiveView'
 import { useStore } from './state/store'
 import { useDmxBridge } from './state/dmx-bridge'
+import type { Chart } from './model/types'
 import { C } from './ui/tokens'
 
-function App(): React.JSX.Element {
-  const mode = useStore((s) => s.mode)
-  useDmxBridge() // feed Art-Net into the store (edit-mode swatches + live render)
+const isOutput = typeof window !== 'undefined' && window.location.search.includes('output')
 
+interface DecorApi {
+  onPreviewActive?: (cb: (active: boolean) => void) => void
+  sendChart?: (chart: unknown) => void
+  onChartUpdate?: (cb: (chart: unknown) => void) => void
+}
+const getApi = (): DecorApi | undefined => (window as unknown as { api?: DecorApi }).api
+
+/** Editor side: while the preview window is open, mirror chart changes to it. */
+function usePreviewMirror(): void {
+  const activeRef = useRef(false)
+  useEffect(() => {
+    const a = getApi()
+    if (!a?.onPreviewActive) return
+    a.onPreviewActive((active) => {
+      activeRef.current = active
+      if (active) a.sendChart?.(useStore.getState().chart)
+    })
+    return useStore.subscribe((state, prev) => {
+      if (activeRef.current && state.chart !== prev.chart) a.sendChart?.(state.chart)
+    })
+  }, [])
+}
+
+/** Output window: receive chart updates from the editor, Esc to close. */
+function useOutputReceiver(): void {
+  useEffect(() => {
+    getApi()?.onChartUpdate?.((chart) => useStore.getState().setChart(chart as Chart))
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.code === 'Escape') window.close()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+}
+
+function OutputApp(): React.JSX.Element {
+  useDmxBridge()
+  useOutputReceiver()
+  return (
+    <div style={{ height: '100%', background: '#000' }}>
+      <LiveView publish={false} bare />
+    </div>
+  )
+}
+
+function EditorApp(): React.JSX.Element {
+  const mode = useStore((s) => s.mode)
+  useDmxBridge()
+  usePreviewMirror()
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: C.canvas }}>
       <Toolbar />
@@ -31,6 +80,10 @@ function App(): React.JSX.Element {
       )}
     </div>
   )
+}
+
+function App(): React.JSX.Element {
+  return isOutput ? <OutputApp /> : <EditorApp />
 }
 
 export default App

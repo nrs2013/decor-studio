@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useStore, type Tool } from '../state/store'
 import { C, F, buttonStyle } from '../ui/tokens'
 
@@ -13,12 +14,25 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: 'polygon', label: 'Poly' }
 ]
 
+interface PreviewApi {
+  togglePreview?: () => Promise<boolean>
+  onPreviewActive?: (cb: (active: boolean) => void) => void
+}
+const previewApi = (): PreviewApi | undefined =>
+  (window as unknown as { api?: PreviewApi }).api
+
 export function Toolbar(): React.JSX.Element {
   const mode = useStore((s) => s.mode)
   const setMode = useStore((s) => s.setMode)
   const tool = useStore((s) => s.tool)
   const setTool = useStore((s) => s.setTool)
   const editing = mode === 'edit'
+
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const hasPreview = !!previewApi()?.togglePreview
+  useEffect(() => {
+    previewApi()?.onPreviewActive?.(setPreviewOpen)
+  }, [])
 
   return (
     <header
@@ -59,6 +73,18 @@ export function Toolbar(): React.JSX.Element {
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {hasPreview && (
+        <>
+          <button
+            style={buttonStyle({ active: previewOpen, accent: C.green, accentRGB: '168,232,120' })}
+            onClick={() => previewApi()?.togglePreview?.()}
+          >
+            プレビュー全画面
+          </button>
+          <div style={{ width: '0.5px', height: 26, background: C.border, margin: '0 4px' }} />
+        </>
+      )}
 
       <div style={{ display: 'flex', gap: 6 }}>
         <button style={buttonStyle({ active: mode === 'edit' })} onClick={() => setMode('edit')}>
