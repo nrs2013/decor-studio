@@ -1,34 +1,60 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import { Toolbar } from './editor/Toolbar'
+import { useStore } from './state/store'
+import { C, F } from './ui/tokens'
 
 function App(): React.JSX.Element {
-  const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+  const mode = useStore((s) => s.mode)
+  const chart = useStore((s) => s.chart)
 
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-        &nbsp;and <span className="ts">TypeScript</span>
-      </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: C.canvas }}>
+      <Toolbar />
+      <main
+        style={{
+          flex: 1,
+          position: 'relative',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: C.canvas
+        }}
+      >
+        {/* Placeholder canvas frame — EditorCanvas (Task 2.3) renders here next. */}
+        <div
+          style={{
+            position: 'relative',
+            width: '72%',
+            maxWidth: 980,
+            aspectRatio: `${chart.canvas.w} / ${chart.canvas.h}`,
+            border: `0.5px solid ${C.border}`,
+            background: '#000',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12
+          }}
+        >
+          <div
+            style={{
+              fontFamily: F.display,
+              fontSize: 44,
+              letterSpacing: '0.12em',
+              color: mode === 'edit' ? C.accent : C.amber
+            }}
+          >
+            {mode === 'edit' ? 'EDIT MODE' : 'LIVE MODE'}
+          </div>
+          <div style={{ fontFamily: F.mono, fontSize: 12, color: C.hint, letterSpacing: '0.05em' }}>
+            {chart.canvas.w} × {chart.canvas.h}
+          </div>
+          <div style={{ fontFamily: F.ui, fontSize: 11, color: C.faint }}>
+            キャンバス（ここに下絵と図形が入ります）
+          </div>
         </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
-        </div>
-      </div>
-      <Versions></Versions>
-    </>
+      </main>
+    </div>
   )
 }
 
