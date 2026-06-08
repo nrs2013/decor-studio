@@ -3,7 +3,13 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
-  openImage: (): Promise<string | null> => ipcRenderer.invoke('dialog:openImage')
+  openImage: (): Promise<string | null> => ipcRenderer.invoke('dialog:openImage'),
+  onDmx: (cb: (pkt: { universe: number; sequence: number; data: Uint8Array }) => void): void => {
+    ipcRenderer.on('artnet:dmx', (_e, pkt) => cb(pkt))
+  },
+  publishFrame: (width: number, height: number, buffer: Uint8ClampedArray): void => {
+    ipcRenderer.send('syphon:frame', { width, height, buffer })
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

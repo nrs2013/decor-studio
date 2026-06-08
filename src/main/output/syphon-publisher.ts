@@ -17,7 +17,7 @@ export class OutputPublisher {
   }
 
   /** Publish a tightly-packed RGBA frame (width*height*4 bytes). */
-  publishRGBA(width: number, height: number, rgba: Uint8Array): void {
+  publishRGBA(width: number, height: number, rgba: Uint8Array | Uint8ClampedArray): void {
     if (!this.server) return
     // node-syphon's typings want a Uint8ClampedArray; share the same backing buffer (no copy).
     const data =

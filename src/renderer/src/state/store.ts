@@ -38,9 +38,62 @@ interface AppState {
   removeFixture: (shapeId: string) => void
 }
 
+/** A small sample chart (shapes patched to U0/1 so the test sender lights them). */
+function demoChart(): Chart {
+  let c = createChart({ w: 1920, h: 1080 })
+  c.name = 'Demo'
+  c = addShapeToChart(c, {
+    type: 'ellipse',
+    points: [
+      { x: 380, y: 400 },
+      { x: 760, y: 700 }
+    ],
+    strokeWidth: 14,
+    glowRadius: 50,
+    glowIntensity: 0.95
+  })
+  c = addShapeToChart(c, {
+    type: 'star',
+    points: [
+      { x: 1080, y: 300 },
+      { x: 1460, y: 660 }
+    ],
+    strokeWidth: 12,
+    glowRadius: 46,
+    glowIntensity: 1
+  })
+  c = addShapeToChart(c, {
+    type: 'line',
+    points: [
+      { x: 200, y: 200 },
+      { x: 1720, y: 240 }
+    ],
+    strokeWidth: 18,
+    glowRadius: 34,
+    glowIntensity: 0.85
+  })
+  const fixtures: Fixture[] = c.shapes.map((sh) => ({
+    id: newId('fx'),
+    shapeId: sh.id,
+    universe: 0,
+    start: 1,
+    mode: 'rgb' as ChannelMode
+  }))
+  return {
+    ...c,
+    fixtures,
+    shapes: c.shapes.map((sh, i) => ({ ...sh, fixtureId: fixtures[i].id }))
+  }
+}
+
+function initialChart(): Chart {
+  if (typeof window !== 'undefined' && window.location.search.includes('demo')) return demoChart()
+  return createChart({ w: 1920, h: 1080 })
+}
+
 export const useStore = create<AppState>()((set, get) => ({
-  chart: createChart({ w: 1920, h: 1080 }),
-  mode: 'edit',
+  chart: initialChart(),
+  mode: typeof window !== 'undefined' && window.location.search.includes('live') ? 'live' : 'edit',
   tool: 'select',
   selectedId: null,
   dmxByUniverse: {},

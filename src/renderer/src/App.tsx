@@ -3,38 +3,15 @@ import { SubBar } from './editor/SubBar'
 import { EditorCanvas } from './editor/EditorCanvas'
 import { Inspector } from './editor/Inspector'
 import { PatchTable } from './editor/PatchTable'
+import { LiveView } from './output/LiveView'
 import { useStore } from './state/store'
-import { C, F } from './ui/tokens'
-
-function LivePlaceholder(): React.JSX.Element {
-  const chart = useStore((s) => s.chart)
-  return (
-    <div
-      style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12,
-        background: C.canvas
-      }}
-    >
-      <div style={{ fontFamily: F.display, fontSize: 44, letterSpacing: '0.12em', color: C.amber }}>
-        LIVE MODE
-      </div>
-      <div style={{ fontFamily: F.mono, fontSize: 12, color: C.hint }}>
-        {chart.canvas.w} × {chart.canvas.h}
-      </div>
-      <div style={{ fontFamily: F.ui, fontSize: 11, color: C.faint }}>
-        本番描画＋Syphon出力は Milestone 3 で実装します
-      </div>
-    </div>
-  )
-}
+import { useDmxBridge } from './state/dmx-bridge'
+import { C } from './ui/tokens'
 
 function App(): React.JSX.Element {
   const mode = useStore((s) => s.mode)
+  useDmxBridge() // feed Art-Net into the store (edit-mode swatches + live render)
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: C.canvas }}>
       <Toolbar />
@@ -49,7 +26,7 @@ function App(): React.JSX.Element {
         </>
       ) : (
         <main style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
-          <LivePlaceholder />
+          <LiveView />
         </main>
       )}
     </div>

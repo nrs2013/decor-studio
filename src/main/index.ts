@@ -7,47 +7,38 @@ import { ArtNetReceiver } from './artnet/artnet-receiver'
 import type { ArtDmxPacket } from './artnet/artdmx-parser'
 import { OutputPublisher } from './output/syphon-publisher'
 
-// --- Milestone 0 spike: Art-Net in -> Syphon out ---
-// Colors a small CPU frame with universe-0 channels 1..3 (R,G,B) and publishes it
-// as the "DECOR STUDIO" Syphon source. (Real WebGL shape rendering arrives in Milestone 3.)
-const SPIKE_W = 256
-const SPIKE_H = 144
-const spikeFrame = new Uint8Array(SPIKE_W * SPIKE_H * 4)
-for (let i = 0; i < SPIKE_W * SPIKE_H; i++) spikeFrame[i * 4 + 3] = 255 // opaque alpha
+// Engine: Art-Net in (UDP 6454) is forwarded to the renderer, which renders the chart and
+// sends frames back to be published on the "DECOR STUDIO" Syphon source.
 const receiver = new ArtNetReceiver()
 const publisher = new OutputPublisher()
+let mainWindow: BrowserWindow | null = null
 
-function startSpike(): void {
+function startEngine(): void {
   publisher.start('DECOR STUDIO')
   receiver.on('dmx', (pkt: ArtDmxPacket) => {
-    if (pkt.universe !== 0) return
-    const r = pkt.data[0] ?? 0
-    const g = pkt.data[1] ?? 0
-    const b = pkt.data[2] ?? 0
-    for (let i = 0; i < SPIKE_W * SPIKE_H; i++) {
-      spikeFrame[i * 4] = r
-      spikeFrame[i * 4 + 1] = g
-      spikeFrame[i * 4 + 2] = b
-    }
-    publisher.publishRGBA(SPIKE_W, SPIKE_H, spikeFrame)
+    mainWindow?.webContents.send('artnet:dmx', {
+      universe: pkt.universe,
+      sequence: pkt.sequence,
+      data: pkt.data
+    })
   })
   receiver.on('error', (err) => console.error('[artnet] receiver error:', err))
   receiver.start('0.0.0.0')
-  console.log('[spike] Art-Net receiver (UDP 6454) + Syphon "DECOR STUDIO" started')
+  console.log('[engine] Art-Net receiver (UDP 6454) + Syphon "DECOR STUDIO" started')
 }
 
-function stopSpike(): void {
+function stopEngine(): void {
   receiver.stop()
   publisher.stop()
 }
 
 function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 820,
     show: false,
     autoHideMenuBar: true,
+    backgroundColor: '#0a0a0a',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -55,40 +46,29 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
+  mainWindow.on('ready-to-show', () => mainWindow?.show())
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
+  // DECOR_QUERY appends a startup query string, e.g. 'live' (start in Live mode) or
+  // 'live&demo' (Live + a sample chart). Handy for output-only machines and testing.
+  const q = process.env['DECOR_QUERY'] ?? ''
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + (q ? '?' + q : ''))
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'), q ? { search: q } : undefined)
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.decor.studio')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
 
   // Underlay image picker: returns the chosen image as a data URL.
   ipcMain.handle('dialog:openImage', async () => {
@@ -103,21 +83,24 @@ app.whenReady().then(() => {
     return `data:image/${mime};base64,${readFileSync(file).toString('base64')}`
   })
 
+  // Live frames from the renderer -> Syphon.
+  ipcMain.on(
+    'syphon:frame',
+    (_e, payload: { width: number; height: number; buffer: Uint8Array | Uint8ClampedArray }) => {
+      publisher.publishRGBA(payload.width, payload.height, payload.buffer)
+    }
+  )
+
   createWindow()
-  startSpike()
+  startEngine()
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('before-quit', () => {
-  stopSpike()
+  stopEngine()
 })
 
 app.on('window-all-closed', () => {
@@ -125,6 +108,3 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
