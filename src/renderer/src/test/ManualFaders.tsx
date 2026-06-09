@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../state/store'
 import type { Chart } from '../model/types'
+import { formatDmx } from '../dmx/address'
 import { C, F, buttonStyle } from '../ui/tokens'
 
 type Pattern = 'none' | 'chase' | 'address'
@@ -55,15 +56,15 @@ export function ManualFaders({ onClose }: { onClose: () => void }): React.JSX.El
     <aside style={drawer}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
         <div style={{ fontFamily: F.display, fontSize: 16, letterSpacing: '0.1em', color: C.white }}>
-          テスト卓
+          Programmer
         </div>
         <div style={{ flex: 1 }} />
         <button style={{ ...buttonStyle({}), padding: '4px 10px' }} onClick={onClose}>
-          閉じる
+          Close
         </button>
       </div>
       <div style={{ fontSize: 11, color: C.faint, fontFamily: F.ui, marginBottom: 12 }}>
-        卓が無くても手動で点灯確認できます。
+        Manual control — test fixtures without a console.
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
@@ -71,7 +72,7 @@ export function ManualFaders({ onClose }: { onClose: () => void }): React.JSX.El
           style={{ ...buttonStyle({ active: manualMode }), flex: 1 }}
           onClick={() => setManualMode(true)}
         >
-          手動
+          Manual
         </button>
         <button
           style={{ ...buttonStyle({ active: !manualMode }), flex: 1 }}
@@ -80,31 +81,31 @@ export function ManualFaders({ onClose }: { onClose: () => void }): React.JSX.El
             setPattern('none')
           }}
         >
-          ライブ
+          Live
         </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
         <button style={buttonStyle({})} onClick={allOn}>
-          全点灯
+          Full
         </button>
         <button
           style={buttonStyle({ active: pattern === 'chase', accent: C.green, accentRGB: '168,232,120' })}
           onClick={() => setPattern((p) => (p === 'chase' ? 'none' : 'chase'))}
         >
-          チェイス
+          Chase
         </button>
         <button
           style={buttonStyle({ active: pattern === 'address', accent: C.amber, accentRGB: '245,200,120' })}
           onClick={() => setPattern((p) => (p === 'address' ? 'none' : 'address'))}
         >
-          番地確認
+          Check
         </button>
         <button
           style={buttonStyle({ accent: '#e0726a', accentRGB: '224,114,106' })}
           onClick={off}
         >
-          消灯
+          Clear
         </button>
       </div>
 
@@ -120,15 +121,15 @@ export function ManualFaders({ onClose }: { onClose: () => void }): React.JSX.El
             padding: '6px 8px'
           }}
         >
-          確認中: {shapeName(chart, fixtures[step].shapeId)} → U{fixtures[step].universe}/
-          {fixtures[step].start}
+          Check: {shapeName(chart, fixtures[step].shapeId)} →{' '}
+          {formatDmx(fixtures[step].universe, fixtures[step].start)}
         </div>
       )}
 
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {count === 0 && (
           <div style={{ fontSize: 11, color: C.faint, fontFamily: F.ui }}>
-            番地を割り当てた図形がありません。Inspectorで番地を付けてください。
+            No patched fixtures — patch a fixture in the Inspector.
           </div>
         )}
         {fixtures.map((f) => {
@@ -152,7 +153,7 @@ export function ManualFaders({ onClose }: { onClose: () => void }): React.JSX.El
                   }}
                 />
                 <span style={{ fontFamily: F.mono, fontSize: 11, color: C.text }}>
-                  {shapeName(chart, f.shapeId)} · U{f.universe}/{f.start}
+                  {shapeName(chart, f.shapeId)} · {formatDmx(f.universe, f.start)}
                 </span>
               </div>
               {(['R', 'G', 'B'] as const).map((label, ch) => (

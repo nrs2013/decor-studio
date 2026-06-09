@@ -81,7 +81,7 @@ export function LiveView({
           }}
         >
           <span style={{ color: C.amber }}>●</span>
-          LIVE — Syphonソース「DECOR STUDIO」を出力中
+          LIVE — Syphon Out: DECOR STUDIO
         </div>
       )}
     </div>

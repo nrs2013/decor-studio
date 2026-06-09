@@ -6,6 +6,9 @@ export interface Addr {
   start: number
 }
 
+/** grandMA2-style DMX notation: `universe.address` (Art-Net universe, 0-based). */
+export const formatDmx = (universe: number, address: number): string => `${universe}.${address}`
+
 /** How many instances a shape expands to (1 if no repeat). */
 export function repeatCount(shape: Pick<Shape, 'repeat'>): number {
   const c = shape.repeat?.count ?? 1

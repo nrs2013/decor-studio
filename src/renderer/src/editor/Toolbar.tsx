@@ -85,7 +85,7 @@ export function Toolbar({
         style={buttonStyle({ active: testOpen, accent: C.fuchsia, accentRGB: '193,134,200' })}
         onClick={onToggleTest}
       >
-        テスト卓
+        Programmer
       </button>
       <div style={{ width: '0.5px', height: 26, background: C.border, margin: '0 4px' }} />
 
@@ -95,7 +95,7 @@ export function Toolbar({
             style={buttonStyle({ active: previewOpen, accent: C.green, accentRGB: '168,232,120' })}
             onClick={() => previewApi()?.togglePreview?.()}
           >
-            プレビュー全画面
+            Fullscreen
           </button>
           <div style={{ width: '0.5px', height: 26, background: C.border, margin: '0 4px' }} />
         </>

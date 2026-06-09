@@ -23,16 +23,16 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): React.JSX.
       <div style={modal} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontFamily: F.display, fontSize: 18, letterSpacing: '0.1em', color: C.white }}>
-            設定
+            Setup
           </div>
           <div style={{ flex: 1 }} />
           <button style={{ ...buttonStyle({}), padding: '4px 10px' }} onClick={onClose}>
-            閉じる
+            Close
           </button>
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <Field label="キャンバス 幅">
+          <Field label="Canvas W">
             <input
               type="number"
               min={16}
@@ -42,7 +42,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): React.JSX.
               onChange={(e) => setCanvasSize(Math.max(16, Number(e.target.value)), chart.canvas.h)}
             />
           </Field>
-          <Field label="キャンバス 高さ">
+          <Field label="Canvas H">
             <input
               type="number"
               min={16}
@@ -55,11 +55,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): React.JSX.
         </div>
         {tooBig && (
           <div style={{ color: C.amber, fontSize: 11, fontFamily: F.ui, marginBottom: 10 }}>
-            ⚠ {MAX_W}×{MAX_H} を超えています。動作が重くなる場合があります。
+            ⚠ over {MAX_W}×{MAX_H} — large canvas may be heavy.
           </div>
         )}
 
-        <Field label="Syphon ソース名">
+        <Field label="Syphon Name">
           <input
             type="text"
             value={chart.syphon.name}
@@ -72,18 +72,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): React.JSX.
         </Field>
 
         <Toggle
-          label="明るさカーブ（ガンマ補正）"
+          label="Gamma"
           on={chart.settings.gamma}
           onChange={setGamma}
           onText="ON"
           offText="OFF"
         />
         <Toggle
-          label="未受信時の挙動"
+          label="On Signal Loss"
           on={chart.settings.holdOnTimeout}
           onChange={setHoldOnTimeout}
-          onText="最後の値を保持"
-          offText="ゼロに落とす"
+          onText="Hold Last"
+          offText="Zero"
         />
       </div>
     </div>

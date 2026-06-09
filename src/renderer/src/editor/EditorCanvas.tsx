@@ -505,15 +505,15 @@ export function EditorCanvas(): React.JSX.Element {
             background: snapToPixel ? C.accent : 'rgba(123,197,232,0.15)',
             color: snapToPixel ? '#0a0a0a' : C.white
           }}
-          title="1ピクセル単位に吸着して描く"
+          title="Snap to 1px grid"
         >
-          {snapToPixel ? 'PX吸着 ON' : 'PX吸着 OFF'}
+          {snapToPixel ? 'Snap ON' : 'Snap OFF'}
         </button>
       </div>
       {tool === 'polyline' && draft && (
-        <div style={hintStyle}>クリックで頂点追加 / ダブルクリックで確定 / Escでキャンセル</div>
+        <div style={hintStyle}>Click to add points · Double-click to finish · Esc to cancel</div>
       )}
-      {spaceUi && <div style={hintStyle}>スペース＋ドラッグで移動中</div>}
+      {spaceUi && <div style={hintStyle}>Space + drag to pan</div>}
     </div>
   )
 }

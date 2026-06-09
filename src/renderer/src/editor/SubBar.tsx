@@ -63,30 +63,30 @@ export function SubBar(): React.JSX.Element {
   return (
     <div style={subBar}>
       <button style={fileBtn} onClick={newChart}>
-        新規
+        New
       </button>
       <button style={fileBtn} onClick={openChart}>
-        開く
+        Load
       </button>
       <button style={fileBtn} onClick={saveChart}>
-        保存
+        Save
       </button>
       <button style={fileBtn} onClick={duplicate}>
-        複製
+        Copy
       </button>
       <button style={fileBtn} onClick={() => setSettingsOpen(true)}>
-        設定
+        Setup
       </button>
 
       <div style={sep} />
 
       <button style={{ ...buttonStyle({}), padding: '6px 12px' }} onClick={loadUnderlay}>
-        下絵を読み込む
+        Background
       </button>
 
       {u && (
         <>
-          <span style={lbl}>不透明度</span>
+          <span style={lbl}>Opacity</span>
           <input
             type="range"
             min={0}
@@ -102,7 +102,7 @@ export function SubBar(): React.JSX.Element {
               style={{ accentColor: C.accent }}
               onChange={(e) => setUnderlayVisible(e.target.checked)}
             />
-            表示
+            Show
           </label>
           <div style={sep} />
           <button
@@ -110,7 +110,7 @@ export function SubBar(): React.JSX.Element {
             onClick={() => setUnderlayMask({ enabled: !(u.mask?.enabled ?? false) })}
             title="アルファPNGの透明部を描画領域にする（はみ出し禁止）"
           >
-            マスク
+            Mask
           </button>
           {u.mask?.enabled && (
             <button
@@ -118,7 +118,7 @@ export function SubBar(): React.JSX.Element {
               onClick={() => setUnderlayMask({ invert: !(u.mask?.invert ?? false) })}
               title="描画領域を反転（不透明部を描画領域に）"
             >
-              反転
+              Invert
             </button>
           )}
           {u.mask?.enabled && (
@@ -127,7 +127,7 @@ export function SubBar(): React.JSX.Element {
               onClick={() => setFillOpen(true)}
               title="マスク内に棒/ドットを自動敷き詰め＋連番採番"
             >
-              敷き詰め
+              Fill
             </button>
           )}
           <div style={sep} />
@@ -135,14 +135,14 @@ export function SubBar(): React.JSX.Element {
             style={{ ...buttonStyle({ accent: '#e0726a', accentRGB: '224,114,106' }), padding: '5px 10px' }}
             onClick={() => setUnderlay(null)}
           >
-            外す
+            Remove
           </button>
         </>
       )}
 
       <div style={{ flex: 1 }} />
       <span style={{ ...lbl, fontFamily: F.mono }}>
-        canvas {chart.canvas.w} × {chart.canvas.h}
+        Canvas {chart.canvas.w} × {chart.canvas.h}
       </span>
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}

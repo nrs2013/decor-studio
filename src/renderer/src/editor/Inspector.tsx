@@ -2,7 +2,7 @@ import { useStore } from '../state/store'
 import type { ChannelMode, DisplayMode } from '../model/types'
 import { C, F, buttonStyle, inputStyle, fieldLabel } from '../ui/tokens'
 import { channelCount } from '../dmx/channel-math'
-import { addressAt } from '../dmx/address'
+import { addressAt, formatDmx } from '../dmx/address'
 
 const DISPLAY_MODES: DisplayMode[] = ['stroke', 'fill', 'both']
 const CHANNEL_MODES: { id: ChannelMode; label: string }[] = [
@@ -28,9 +28,9 @@ export function Inspector(): React.JSX.Element {
   if (!shape) {
     return (
       <aside style={asideStyle}>
-        <SectionTitle>Inspector</SectionTitle>
+        <SectionTitle>Fixture</SectionTitle>
         <div style={{ color: C.faint, fontSize: 12, fontFamily: F.ui, marginTop: 8 }}>
-          図形を選択すると、ここで形と番地（DMXアドレス）を編集できます。
+          Select a fixture to edit its shape and DMX patch.
         </div>
       </aside>
     )
@@ -47,14 +47,14 @@ export function Inspector(): React.JSX.Element {
 
   return (
     <aside style={asideStyle}>
-      <SectionTitle>Inspector</SectionTitle>
+      <SectionTitle>Fixture</SectionTitle>
       <div style={{ fontFamily: F.mono, fontSize: 11, color: C.hint, marginBottom: rowGap }}>
         {shape.type.toUpperCase()} · {shape.id.slice(-6)}
       </div>
 
       {/* display mode */}
       {!open && (
-        <Field label="表示モード">
+        <Field label="Display">
           <div style={{ display: 'flex', gap: 6 }}>
             {DISPLAY_MODES.map((m) => (
               <button
@@ -62,14 +62,14 @@ export function Inspector(): React.JSX.Element {
                 style={{ ...buttonStyle({ active: shape.display === m }), flex: 1, padding: '6px 0' }}
                 onClick={() => updateShape(shape.id, { display: m })}
               >
-                {m === 'stroke' ? '線' : m === 'fill' ? '塗り' : '両方'}
+                {m === 'stroke' ? 'Stroke' : m === 'fill' ? 'Fill' : 'Both'}
               </button>
             ))}
           </div>
         </Field>
       )}
 
-      <Field label="線の太さ">
+      <Field label="Width">
         <input
           type="number"
           min={1}
@@ -80,7 +80,7 @@ export function Inspector(): React.JSX.Element {
         />
       </Field>
 
-      <Field label={`グロー半径  ${shape.glowRadius}px`}>
+      <Field label={`Glow Size  ${shape.glowRadius}px`}>
         <input
           type="range"
           min={0}
@@ -91,7 +91,7 @@ export function Inspector(): React.JSX.Element {
         />
       </Field>
 
-      <Field label={`グロー強度  ${Math.round(shape.glowIntensity * 100)}%`}>
+      <Field label={`Glow  ${Math.round(shape.glowIntensity * 100)}%`}>
         <input
           type="range"
           min={0}
@@ -104,10 +104,10 @@ export function Inspector(): React.JSX.Element {
 
       {/* repeat / array */}
       <div style={{ marginBottom: rowGap }}>
-        <label style={fieldLabel}>反復（アレイ）{hasRepeat ? `  ${shape.repeat!.count}本` : ''}</label>
+        <label style={fieldLabel}>Array{hasRepeat ? `  ×${shape.repeat!.count}` : ''}</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1 }}>
-            <label style={fieldLabel}>本数</label>
+            <label style={fieldLabel}>Count</label>
             <input
               type="number"
               min={1}
@@ -118,7 +118,7 @@ export function Inspector(): React.JSX.Element {
             />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={fieldLabel}>ピッチX</label>
+            <label style={fieldLabel}>Pitch X</label>
             <input
               type="number"
               value={shape.repeat?.dx ?? 10}
@@ -128,7 +128,7 @@ export function Inspector(): React.JSX.Element {
             />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={fieldLabel}>ピッチY</label>
+            <label style={fieldLabel}>Pitch Y</label>
             <input
               type="number"
               value={shape.repeat?.dy ?? 0}
@@ -143,18 +143,18 @@ export function Inspector(): React.JSX.Element {
       <div style={{ height: 1, background: C.border, margin: `${rowGap}px 0` }} />
 
       {/* DMX address */}
-      <SectionTitle>番地（DMX）</SectionTitle>
+      <SectionTitle>Patch</SectionTitle>
       {!fixture ? (
         <button
           style={{ ...buttonStyle({}), width: '100%', marginTop: 8 }}
           onClick={() => upsertFixture(shape.id, {})}
         >
-          + 番地を割り当てる
+          + Patch
         </button>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <Field label="ユニバース">
+            <Field label="Universe">
               <input
                 type="number"
                 min={0}
@@ -164,7 +164,7 @@ export function Inspector(): React.JSX.Element {
                 onChange={(e) => upsertFixture(shape.id, { universe: Number(e.target.value) })}
               />
             </Field>
-            <Field label="開始番地">
+            <Field label="DMX Addr">
               <input
                 type="number"
                 min={1}
@@ -180,7 +180,7 @@ export function Inspector(): React.JSX.Element {
             </Field>
           </div>
 
-          <Field label="構成">
+          <Field label="Type">
             <select
               value={fixture.mode}
               style={{ ...inputStyle, fontFamily: F.ui }}
@@ -195,7 +195,7 @@ export function Inspector(): React.JSX.Element {
           </Field>
 
           {fixture.mode === 'dim' && (
-            <Field label="固定色">
+            <Field label="Color">
               <input
                 type="color"
                 value={rgbToHex(fixture.fixedColor ?? [255, 255, 255])}
@@ -206,7 +206,7 @@ export function Inspector(): React.JSX.Element {
           )}
 
           {hasRepeat && (
-            <Field label={`番地ステップ（既定 ${channelCount(fixture.mode)}）`}>
+            <Field label={`Offset (default ${channelCount(fixture.mode)})`}>
               <input
                 type="number"
                 min={1}
@@ -230,7 +230,7 @@ export function Inspector(): React.JSX.Element {
             }}
           >
             {!hasRepeat
-              ? `U${fixture.universe} / ${fixture.start}–${fixture.start + channelCount(fixture.mode) - 1}`
+              ? `${formatDmx(fixture.universe, fixture.start)} – ${formatDmx(fixture.universe, fixture.start + channelCount(fixture.mode) - 1)}`
               : (() => {
                   const last = addressAt(
                     fixture.universe,
@@ -239,7 +239,7 @@ export function Inspector(): React.JSX.Element {
                     fixture.addressStep,
                     shape.repeat!.count - 1
                   )
-                  return `連番 U${fixture.universe}/${fixture.start} … U${last.universe}/${last.start} ×${shape.repeat!.count}`
+                  return `${formatDmx(fixture.universe, fixture.start)} … ${formatDmx(last.universe, last.start)} ×${shape.repeat!.count}`
                 })()}
           </div>
         </>
@@ -254,7 +254,7 @@ export function Inspector(): React.JSX.Element {
         }}
         onClick={() => removeShape(shape.id)}
       >
-        図形を削除
+        Delete
       </button>
     </aside>
   )

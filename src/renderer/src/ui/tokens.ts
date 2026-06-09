@@ -34,7 +34,7 @@ export const F = {
 
 export const inputStyle: CSSProperties = {
   background: C.inputBg,
-  border: `0.5px solid ${C.border}`,
+  border: `1px solid #3b3631`,
   color: C.white,
   padding: '5px 8px',
   borderRadius: 4,
@@ -57,23 +57,25 @@ export const fieldLabel: CSSProperties = {
 
 /** Brutalist-Vivid button: 0.5px accent line + semi-transparent bg + white text (idle),
  *  solid accent + dark text (active/selected). */
+// Solid lighting-console button (grandMA2-style): filled dark key, 1px border, subtle
+// bevel; lights up in the accent colour when active/selected.
 export function buttonStyle(opts?: { active?: boolean; accent?: string; accentRGB?: string }): CSSProperties {
   const accent = opts?.accent ?? C.accent
-  const rgb = opts?.accentRGB ?? C.accentRGB
   const active = opts?.active ?? false
   return {
-    background: active ? accent : `rgba(${rgb},0.15)`,
-    border: `0.5px solid ${accent}`,
-    color: active ? '#0a0a0a' : C.white,
-    padding: '7px 14px',
-    borderRadius: 4,
+    background: active ? accent : '#242220',
+    border: `1px solid ${active ? accent : '#3b3631'}`,
+    color: active ? '#0a0a0a' : C.text,
+    padding: '7px 13px',
+    borderRadius: 3,
     fontSize: 12,
-    fontFamily: F.display,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
+    fontFamily: F.ui,
+    fontWeight: 600,
+    letterSpacing: '0.02em',
     cursor: 'pointer',
     lineHeight: 1,
     whiteSpace: 'nowrap',
+    boxShadow: active ? 'none' : 'inset 0 1px 0 rgba(255,255,255,0.05)',
     transition: 'background 120ms'
   }
 }

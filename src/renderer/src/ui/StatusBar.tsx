@@ -41,9 +41,9 @@ export function StatusBar(): React.JSX.Element {
 
   return (
     <div style={bar}>
-      <span style={lbl}>Art-Net 受信</span>
+      <span style={lbl}>Art-Net In</span>
       {universes.length === 0 ? (
-        <span style={{ ...chip, color: C.faint, borderColor: C.border }}>待機中…</span>
+        <span style={{ ...chip, color: C.faint, borderColor: C.border }}>No Signal</span>
       ) : (
         universes.map((u) => {
           const live = now - (lastSeen[u] || 0) < 2000
@@ -64,14 +64,14 @@ export function StatusBar(): React.JSX.Element {
           borderColor: syphon ? C.green : C.border
         }}
       >
-        Syphon {syphon ? '● 受信中' : '○ 未接続'}
+        Syphon Out {syphon ? '● Linked' : '○ —'}
       </span>
 
       <div style={{ flex: 1 }} />
 
       {hasNet && (
         <>
-          <span style={lbl}>受信ポート</span>
+          <span style={lbl}>Interface</span>
           <select
             value={nic}
             onChange={(e) => {

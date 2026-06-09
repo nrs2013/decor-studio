@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import type { ChannelMode } from '../model/types'
 import { channelCount } from '../dmx/channel-math'
-import { addressAt } from '../dmx/address'
+import { addressAt, formatDmx } from '../dmx/address'
 import { C, F, buttonStyle, inputStyle, fieldLabel } from '../ui/tokens'
 
 const CAP = 4000
@@ -52,52 +52,52 @@ export function FillDialog({ onClose }: { onClose: () => void }): React.JSX.Elem
       <div style={modal} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
           <div style={{ fontFamily: F.display, fontSize: 18, letterSpacing: '0.1em', color: C.white }}>
-            マスクに敷き詰め
+            Fill Mask
           </div>
           <div style={{ flex: 1 }} />
           <button style={{ ...buttonStyle({}), padding: '4px 10px' }} onClick={onClose}>
-            閉じる
+            Close
           </button>
         </div>
 
         {!mask ? (
           <div style={{ color: C.amber, fontSize: 12, fontFamily: F.ui }}>
-            先に下絵を読み込み、「マスク」を有効にしてください。
+            Load a background and enable Mask first.
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', gap: 10 }}>
-              <Field label="ピッチX(px)">
+              <Field label="Pitch X">
                 <input type="number" min={1} value={pitchX} style={inputStyle}
                   onChange={(e) => setPitchX(Math.max(1, Number(e.target.value)))} />
               </Field>
-              <Field label="ピッチY(px)">
+              <Field label="Pitch Y">
                 <input type="number" min={1} value={pitchY} style={inputStyle}
                   onChange={(e) => setPitchY(Math.max(1, Number(e.target.value)))} />
               </Field>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <Field label="セル幅(px)">
+              <Field label="Cell W">
                 <input type="number" min={1} value={cellW} style={inputStyle}
                   onChange={(e) => setCellW(Math.max(1, Number(e.target.value)))} />
               </Field>
-              <Field label="セル高(px)">
+              <Field label="Cell H">
                 <input type="number" min={1} value={cellH} style={inputStyle}
                   onChange={(e) => setCellH(Math.max(1, Number(e.target.value)))} />
               </Field>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <Field label="基準ユニバース">
+              <Field label="Universe">
                 <input type="number" min={0} value={universe} style={inputStyle}
                   onChange={(e) => setUniverse(Math.max(0, Number(e.target.value)))} />
               </Field>
-              <Field label="開始番地">
+              <Field label="DMX Addr">
                 <input type="number" min={1} max={512} value={start} style={inputStyle}
                   onChange={(e) => setStart(Math.min(512, Math.max(1, Number(e.target.value))))} />
               </Field>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <Field label="構成">
+              <Field label="Type">
                 <select value={mode} style={{ ...inputStyle, fontFamily: F.ui }}
                   onChange={(e) => {
                     const m = e.target.value as ChannelMode
@@ -109,26 +109,30 @@ export function FillDialog({ onClose }: { onClose: () => void }): React.JSX.Elem
                   ))}
                 </select>
               </Field>
-              <Field label="番地ステップ">
+              <Field label="Offset">
                 <input type="number" min={1} value={step} style={inputStyle}
                   onChange={(e) => setStep(Math.max(1, Number(e.target.value)))} />
               </Field>
             </div>
 
             <div style={{ fontFamily: F.mono, fontSize: 12, color: C.accent, margin: '4px 0 12px' }}>
-              生成予定: {capped} 個
-              {estimate > CAP && <span style={{ color: C.amber }}>（上限{CAP}に制限・ピッチを大きく）</span>}
-              {lastAddr && <span style={{ color: C.hint }}>　番地 U{universe}/{start} … U{lastAddr.universe}/{lastAddr.start}</span>}
+              Cells: {capped}
+              {estimate > CAP && <span style={{ color: C.amber }}>(capped at {CAP} — increase pitch)</span>}
+              {lastAddr && (
+                <span style={{ color: C.hint }}>
+                  {'  '}DMX {formatDmx(universe, start)} … {formatDmx(lastAddr.universe, lastAddr.start)}
+                </span>
+              )}
             </div>
 
             {done !== null && (
               <div style={{ fontFamily: F.ui, fontSize: 12, color: C.green, marginBottom: 10 }}>
-                {done} 個を生成しました。
+                Filled {done} cells.
               </div>
             )}
 
             <button style={{ ...buttonStyle({}), width: '100%' }} onClick={generate}>
-              敷き詰めて番地を連番付与
+              Fill + Patch
             </button>
           </>
         )}

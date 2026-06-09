@@ -1,6 +1,7 @@
 import { useStore } from '../state/store'
 import { C, F, buttonStyle } from '../ui/tokens'
 import { channelRange, detectOverlaps } from '../dmx/patch'
+import { formatDmx } from '../dmx/address'
 import { resolveColor } from '../dmx/resolve'
 
 export function PatchTable(): React.JSX.Element {
@@ -39,16 +40,16 @@ export function PatchTable(): React.JSX.Element {
     <div style={wrapStyle}>
       <div style={headerRow}>
         <div style={{ fontFamily: F.display, fontSize: 15, letterSpacing: '0.1em', color: C.white }}>
-          番地一覧 <span style={{ color: C.hint, fontSize: 12 }}>({chart.fixtures.length})</span>
+          Patch <span style={{ color: C.hint, fontSize: 12 }}>({chart.fixtures.length})</span>
         </div>
         {overlaps.length > 0 && (
           <div style={{ color: '#e0726a', fontSize: 11, fontFamily: F.ui }}>
-            ⚠ {overlaps.length} 件の番地重複
+            ⚠ {overlaps.length} DMX clash
           </div>
         )}
         <div style={{ flex: 1 }} />
         <button style={{ ...buttonStyle({}), padding: '5px 12px' }} onClick={exportCsv}>
-          CSV書き出し
+          Export CSV
         </button>
       </div>
 
@@ -56,7 +57,7 @@ export function PatchTable(): React.JSX.Element {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: F.mono, fontSize: 11 }}>
           <thead>
             <tr style={{ color: C.label, textAlign: 'left' }}>
-              {['図形', 'Uni', '開始', '構成', '範囲', '現在値'].map((h) => (
+              {['Fixture', 'DMX', 'Type', 'Range', 'Value'].map((h) => (
                 <th key={h} style={thStyle}>
                   {h}
                 </th>
@@ -66,8 +67,8 @@ export function PatchTable(): React.JSX.Element {
           <tbody>
             {chart.fixtures.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, color: C.faint, fontFamily: F.ui }}>
-                  まだ番地が割り当てられていません。図形を選んで Inspector で番地を付けてください。
+                <td colSpan={5} style={{ ...tdStyle, color: C.faint, fontFamily: F.ui }}>
+                  No fixtures patched yet — select a fixture and patch it in the Inspector.
                 </td>
               </tr>
             )}
@@ -100,8 +101,7 @@ export function PatchTable(): React.JSX.Element {
                     {shapeName(f.shapeId)}
                     {cnt > 1 ? ` ×${cnt}` : ''}
                   </td>
-                  <td style={tdStyle}>{f.universe}</td>
-                  <td style={tdStyle}>{f.start}</td>
+                  <td style={tdStyle}>{formatDmx(f.universe, f.start)}</td>
                   <td style={tdStyle}>{f.mode}</td>
                   <td style={{ ...tdStyle, color: isFlagged ? '#e0726a' : C.text }}>
                     {s}–{e}
