@@ -73,6 +73,7 @@ export function PatchTable(): React.JSX.Element {
             )}
             {chart.fixtures.map((f) => {
               const [s, e] = channelRange(f)
+              const cnt = chart.shapes.find((x) => x.id === f.shapeId)?.repeat?.count ?? 1
               const isFlagged = flagged.has(f.id)
               const isSel = f.shapeId === selectedId
               const [r, g, b] = resolveColor(
@@ -95,7 +96,10 @@ export function PatchTable(): React.JSX.Element {
                     color: C.text
                   }}
                 >
-                  <td style={tdStyle}>{shapeName(f.shapeId)}</td>
+                  <td style={tdStyle}>
+                    {shapeName(f.shapeId)}
+                    {cnt > 1 ? ` ×${cnt}` : ''}
+                  </td>
                   <td style={tdStyle}>{f.universe}</td>
                   <td style={tdStyle}>{f.start}</td>
                   <td style={tdStyle}>{f.mode}</td>

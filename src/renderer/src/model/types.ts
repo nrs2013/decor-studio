@@ -23,6 +23,8 @@ export interface Shape {
   strokeWidth: number
   glowRadius: number // px
   glowIntensity: number // 0..1
+  /** Repeat this shape into a parametric array (e.g. a bar every 10px). */
+  repeat?: { count: number; dx: number; dy: number }
   fixtureId?: string
 }
 
@@ -32,6 +34,8 @@ export interface Fixture {
   universe: number // 0..32767
   start: number // 1..512
   mode: ChannelMode
+  /** Address increment per repeat (defaults to the channel width); enables 連番採番. */
+  addressStep?: number
   fixedColor?: [number, number, number] // for 'dim' mode (the fixed color the dimmer scales)
 }
 

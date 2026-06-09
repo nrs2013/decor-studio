@@ -2,6 +2,7 @@ import { useStore } from '../state/store'
 import type { ChannelMode, DisplayMode } from '../model/types'
 import { C, F, buttonStyle, inputStyle, fieldLabel } from '../ui/tokens'
 import { channelCount } from '../dmx/channel-math'
+import { addressAt } from '../dmx/address'
 
 const DISPLAY_MODES: DisplayMode[] = ['stroke', 'fill', 'both']
 const CHANNEL_MODES: { id: ChannelMode; label: string }[] = [
@@ -33,6 +34,15 @@ export function Inspector(): React.JSX.Element {
         </div>
       </aside>
     )
+  }
+
+  const hasRepeat = (shape.repeat?.count ?? 1) > 1
+  const setRepeat = (patch: Partial<{ count: number; dx: number; dy: number }>): void => {
+    const cur = shape.repeat ?? { count: 1, dx: 10, dy: 0 }
+    const next = { ...cur, ...patch }
+    updateShape(shape.id, {
+      repeat: next.count > 1 ? { count: next.count, dx: next.dx, dy: next.dy } : undefined
+    })
   }
 
   return (
@@ -91,6 +101,44 @@ export function Inspector(): React.JSX.Element {
           onChange={(e) => updateShape(shape.id, { glowIntensity: Number(e.target.value) / 100 })}
         />
       </Field>
+
+      {/* repeat / array */}
+      <div style={{ marginBottom: rowGap }}>
+        <label style={fieldLabel}>反復（アレイ）{hasRepeat ? `  ${shape.repeat!.count}本` : ''}</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={fieldLabel}>本数</label>
+            <input
+              type="number"
+              min={1}
+              max={4096}
+              value={shape.repeat?.count ?? 1}
+              style={inputStyle}
+              onChange={(e) => setRepeat({ count: Math.max(1, Math.min(4096, Number(e.target.value))) })}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={fieldLabel}>ピッチX</label>
+            <input
+              type="number"
+              value={shape.repeat?.dx ?? 10}
+              style={inputStyle}
+              disabled={!hasRepeat}
+              onChange={(e) => setRepeat({ dx: Number(e.target.value) })}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={fieldLabel}>ピッチY</label>
+            <input
+              type="number"
+              value={shape.repeat?.dy ?? 0}
+              style={inputStyle}
+              disabled={!hasRepeat}
+              onChange={(e) => setRepeat({ dy: Number(e.target.value) })}
+            />
+          </div>
+        </div>
+      </div>
 
       <div style={{ height: 1, background: C.border, margin: `${rowGap}px 0` }} />
 
@@ -157,6 +205,21 @@ export function Inspector(): React.JSX.Element {
             </Field>
           )}
 
+          {hasRepeat && (
+            <Field label={`番地ステップ（既定 ${channelCount(fixture.mode)}）`}>
+              <input
+                type="number"
+                min={1}
+                max={512}
+                value={fixture.addressStep ?? channelCount(fixture.mode)}
+                style={inputStyle}
+                onChange={(e) =>
+                  upsertFixture(shape.id, { addressStep: Math.max(1, Number(e.target.value)) })
+                }
+              />
+            </Field>
+          )}
+
           <div
             style={{
               fontFamily: F.mono,
@@ -166,7 +229,18 @@ export function Inspector(): React.JSX.Element {
               letterSpacing: '0.04em'
             }}
           >
-            U{fixture.universe} / {fixture.start}–{fixture.start + channelCount(fixture.mode) - 1}
+            {!hasRepeat
+              ? `U${fixture.universe} / ${fixture.start}–${fixture.start + channelCount(fixture.mode) - 1}`
+              : (() => {
+                  const last = addressAt(
+                    fixture.universe,
+                    fixture.start,
+                    fixture.mode,
+                    fixture.addressStep,
+                    shape.repeat!.count - 1
+                  )
+                  return `連番 U${fixture.universe}/${fixture.start} … U${last.universe}/${last.start} ×${shape.repeat!.count}`
+                })()}
           </div>
         </>
       )}

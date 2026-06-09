@@ -78,6 +78,41 @@ function ShapeEl({
   }
 }
 
+/** Renders a shape, expanding a repeat array into lightweight <use> copies. */
+function ShapeNode({
+  shape,
+  selected,
+  crisp,
+  onPick
+}: {
+  shape: Shape
+  selected: boolean
+  crisp: boolean
+  onPick?: (e: RPointerEvent) => void
+}): React.JSX.Element | null {
+  const count = shape.repeat && shape.repeat.count > 1 ? shape.repeat.count : 1
+  if (count <= 1) return <ShapeEl shape={shape} selected={selected} crisp={crisp} onPick={onPick} />
+  const dx = shape.repeat!.dx
+  const dy = shape.repeat!.dy
+  return (
+    <g>
+      <g id={`s-${shape.id}`}>
+        <ShapeEl shape={shape} selected={selected} crisp={crisp} onPick={onPick} />
+      </g>
+      {Array.from({ length: count - 1 }, (_, k) => (
+        <use
+          key={k}
+          href={`#s-${shape.id}`}
+          x={dx * (k + 1)}
+          y={dy * (k + 1)}
+          onPointerDown={onPick}
+          style={{ pointerEvents: onPick ? 'auto' : 'none', cursor: onPick ? 'pointer' : 'default' }}
+        />
+      ))}
+    </g>
+  )
+}
+
 export function EditorCanvas(): React.JSX.Element {
   const chart = useStore((s) => s.chart)
   const tool = useStore((s) => s.tool)
@@ -280,7 +315,18 @@ export function EditorCanvas(): React.JSX.Element {
   }
 
   const sel = chart.shapes.find((s) => s.id === selectedId)
-  const selB = sel ? shapeBounds(sel) : null
+  let selB = sel ? shapeBounds(sel) : null
+  if (sel && selB && sel.repeat && sel.repeat.count > 1) {
+    const c = sel.repeat.count - 1
+    const ex = sel.repeat.dx * c
+    const ey = sel.repeat.dy * c
+    selB = {
+      x: Math.min(selB.x, selB.x + ex),
+      y: Math.min(selB.y, selB.y + ey),
+      w: selB.w + Math.abs(ex),
+      h: selB.h + Math.abs(ey)
+    }
+  }
   const handle = 8 / view.scale
   const cursor = spaceUi ? 'grab' : tool === 'select' ? 'default' : 'crosshair'
 
@@ -342,7 +388,7 @@ export function EditorCanvas(): React.JSX.Element {
           )}
 
           {chart.shapes.map((shape) => (
-            <ShapeEl
+            <ShapeNode
               key={shape.id}
               shape={shape}
               selected={shape.id === selectedId}

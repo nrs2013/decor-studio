@@ -1,7 +1,9 @@
 import type { Chart, Shape, Fixture } from '../model/types'
-import type { RGB } from '../dmx/channel-math'
-import { resolveColor } from '../dmx/resolve'
+import { fixtureColor, type RGB } from '../dmx/channel-math'
+import { addressAt, repeatCount } from '../dmx/address'
 import { cornerBounds, trianglePoints, starPoints, regularPolygonPoints } from '../editor/geometry'
+
+const ZEROS = new Uint8Array(512)
 
 /**
  * Draws the live output frame: every patched shape on a pure-black background, in its
@@ -48,9 +50,28 @@ export class OutputRenderer {
     for (const shape of chart.shapes) {
       const fx = fxByShape.get(shape.id)
       if (!fx) continue
-      const rgb = resolveColor(fx, dmxByUniverse, gamma, manual)
-      if (rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0) continue // off -> stays black
-      this.drawShape(shape, rgb)
+      const reps = repeatCount(shape)
+      const dx = shape.repeat?.dx ?? 0
+      const dy = shape.repeat?.dy ?? 0
+      const man = manual?.[fx.id] // a manual override lights the whole array uniformly
+      for (let i = 0; i < reps; i++) {
+        let rgb: RGB
+        if (man) {
+          rgb = man
+        } else {
+          const a =
+            reps > 1
+              ? addressAt(fx.universe, fx.start, fx.mode, fx.addressStep, i)
+              : { universe: fx.universe, start: fx.start }
+          rgb = fixtureColor(
+            { ...fx, universe: a.universe, start: a.start },
+            dmxByUniverse[a.universe] ?? ZEROS,
+            gamma
+          )
+        }
+        if (rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0) continue // off -> stays black
+        this.drawShape(shape, rgb, dx * i, dy * i)
+      }
     }
     ctx.globalCompositeOperation = 'source-over'
     ctx.globalAlpha = 1
@@ -61,8 +82,10 @@ export class OutputRenderer {
     return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height).data
   }
 
-  private drawShape(shape: Shape, rgb: RGB): void {
+  private drawShape(shape: Shape, rgb: RGB, ox = 0, oy = 0): void {
     const ctx = this.ctx
+    ctx.save()
+    if (ox || oy) ctx.translate(ox, oy)
     const col = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`
     const open = shape.type === 'line' || shape.type === 'polyline' || shape.type === 'freehand'
     const doStroke = open || shape.display !== 'fill'
@@ -82,11 +105,11 @@ export class OutputRenderer {
       ctx.shadowColor = col
       ctx.shadowBlur = shape.glowRadius
       for (let i = 0; i < glowPasses; i++) paint()
+      ctx.shadowBlur = 0
+      ctx.shadowColor = 'transparent'
     }
-    // crisp core, no shadow
-    ctx.shadowBlur = 0
-    ctx.shadowColor = 'transparent'
     paint()
+    ctx.restore()
   }
 
   private buildPath(shape: Shape): void {
