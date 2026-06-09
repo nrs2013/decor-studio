@@ -21,8 +21,6 @@ export interface Shape {
   points: Point[] // geometry in canvas pixels
   display: DisplayMode
   strokeWidth: number
-  glowRadius: number // px
-  glowIntensity: number // 0..1
   /** Repeat this shape into a parametric array (e.g. a bar every 10px). */
   repeat?: { count: number; dx: number; dy: number }
   fixtureId?: string
@@ -54,5 +52,5 @@ export interface Chart {
   shapes: Shape[]
   fixtures: Fixture[]
   syphon: { name: string }
-  settings: { holdOnTimeout: boolean; gamma: boolean }
+  settings: { holdOnTimeout: boolean; gamma: boolean; glow: boolean; glowAmount: number }
 }

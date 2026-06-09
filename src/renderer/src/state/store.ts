@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Chart, Shape, Fixture, ChannelMode } from '../model/types'
+import type { Chart, Shape, Fixture, ChannelMode, Point } from '../model/types'
 import { createChart, addShape as addShapeToChart, newId } from '../model/chart-model'
 import type { MaskData } from '../ui/mask'
 import { addressAt } from '../dmx/address'
@@ -37,6 +37,7 @@ interface AppState {
   addShape: (init: { type: Shape['type']; points: Shape['points'] } & Partial<Shape>) => string
   removeShape: (id: string) => void
   nudgeShape: (id: string, dx: number, dy: number) => void
+  setShapePoints: (id: string, points: Point[]) => void
   duplicateShape: (id: string) => void
   setUniverseData: (universe: number, data: Uint8Array) => void
 
@@ -66,6 +67,8 @@ interface AppState {
   setCanvasSize: (w: number, h: number) => void
   setGamma: (on: boolean) => void
   setHoldOnTimeout: (on: boolean) => void
+  setGlow: (on: boolean) => void
+  setGlowAmount: (px: number) => void
   setSyphonName: (name: string) => void
 }
 
@@ -79,9 +82,7 @@ function demoChart(): Chart {
       { x: 380, y: 400 },
       { x: 760, y: 700 }
     ],
-    strokeWidth: 14,
-    glowRadius: 50,
-    glowIntensity: 0.95
+    strokeWidth: 14
   })
   c = addShapeToChart(c, {
     type: 'star',
@@ -89,9 +90,7 @@ function demoChart(): Chart {
       { x: 1080, y: 300 },
       { x: 1460, y: 660 }
     ],
-    strokeWidth: 12,
-    glowRadius: 46,
-    glowIntensity: 1
+    strokeWidth: 12
   })
   c = addShapeToChart(c, {
     type: 'line',
@@ -99,9 +98,7 @@ function demoChart(): Chart {
       { x: 200, y: 200 },
       { x: 1720, y: 240 }
     ],
-    strokeWidth: 18,
-    glowRadius: 34,
-    glowIntensity: 0.85
+    strokeWidth: 18
   })
   const fixtures: Fixture[] = c.shapes.map((sh) => ({
     id: newId('fx'),
@@ -241,6 +238,9 @@ export const useStore = create<AppState>()((set, get) => ({
     set((s) => ({ chart: { ...s.chart, settings: { ...s.chart.settings, gamma: on } } })),
   setHoldOnTimeout: (on) =>
     set((s) => ({ chart: { ...s.chart, settings: { ...s.chart.settings, holdOnTimeout: on } } })),
+  setGlow: (on) => set((s) => ({ chart: { ...s.chart, settings: { ...s.chart.settings, glow: on } } })),
+  setGlowAmount: (px) =>
+    set((s) => ({ chart: { ...s.chart, settings: { ...s.chart.settings, glowAmount: px } } })),
   setSyphonName: (name) => set((s) => ({ chart: { ...s.chart, syphon: { name } } })),
   setSnap: (on) => set({ snapToPixel: on }),
   setUnderlayMask: (patch) =>
@@ -276,8 +276,6 @@ export const useStore = create<AppState>()((set, get) => ({
           ],
           display: 'fill',
           strokeWidth: 1,
-          glowRadius: Math.max(2, Math.round(Math.max(opts.cellW, opts.cellH) * 1.2)),
-          glowIntensity: 0.8,
           fixtureId: fid
         })
         newFixtures.push({ id: fid, shapeId: id, universe: a.universe, start: a.start, mode: opts.mode })
@@ -301,6 +299,10 @@ export const useStore = create<AppState>()((set, get) => ({
           sh.id === id ? { ...sh, points: sh.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) } : sh
         )
       }
+    })),
+  setShapePoints: (id, points) =>
+    set((s) => ({
+      chart: { ...s.chart, shapes: s.chart.shapes.map((sh) => (sh.id === id ? { ...sh, points } : sh)) }
     })),
   duplicateShape: (id) =>
     set((s) => {

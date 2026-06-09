@@ -63,6 +63,7 @@ export function EditorCanvas(): React.JSX.Element {
   viewRef.current = view
   const [draft, setDraft] = useState<{ type: DrawType; points: Point[] } | null>(null)
   const drawing = useRef(false)
+  const moving = useRef<{ id: string; sx: number; sy: number; orig: Point[] } | null>(null)
   const panning = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
   const spaceHeld = useRef(false)
   const [spaceUi, setSpaceUi] = useState(false)
@@ -184,9 +185,7 @@ export function EditorCanvas(): React.JSX.Element {
         type: draft.type,
         points: draft.points,
         display: draft.type === 'rect' || draft.type === 'ellipse' ? 'both' : 'stroke',
-        strokeWidth: tool === 'pixelpen' ? 1 : 4,
-        glowRadius: 0,
-        glowIntensity: 0
+        strokeWidth: tool === 'pixelpen' ? 1 : 2
       }
       drawShapeInto(ctx, dShape, C.accent, 'rgba(123,197,232,0.3)')
     }
@@ -309,6 +308,16 @@ export function EditorCanvas(): React.JSX.Element {
         e.preventDefault()
         return
       }
+      if (e.key === '[' || e.key === ']') {
+        const sh = st.chart.shapes.find((x) => x.id === sel)
+        if (sh) {
+          st.updateShape(sel, {
+            strokeWidth: Math.max(1, (sh.strokeWidth || 1) + (e.key === ']' ? 1 : -1))
+          })
+        }
+        e.preventDefault()
+        return
+      }
       const stp = e.shiftKey ? 10 : 1
       let dx = 0
       let dy = 0
@@ -356,13 +365,15 @@ export function EditorCanvas(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [w, h])
 
-  const toCanvas = (clientX: number, clientY: number): Point => {
+  const toCanvasRaw = (clientX: number, clientY: number): Point => {
     const r = canvasRef.current!.getBoundingClientRect()
     const v = viewRef.current
-    const x = (clientX - r.left - v.tx) / v.scale
-    const y = (clientY - r.top - v.ty) / v.scale
+    return { x: (clientX - r.left - v.tx) / v.scale, y: (clientY - r.top - v.ty) / v.scale }
+  }
+  const toCanvas = (clientX: number, clientY: number): Point => {
+    const p = toCanvasRaw(clientX, clientY)
     const snap = snapToPixel || tool === 'pixelpen'
-    return snap ? { x: Math.round(x), y: Math.round(y) } : { x, y }
+    return snap ? { x: Math.round(p.x), y: Math.round(p.y) } : p
   }
 
   const isDrawable = (p: Point): boolean => {
@@ -393,7 +404,16 @@ export function EditorCanvas(): React.JSX.Element {
     if (e.button !== 0) return
     const p = toCanvas(e.clientX, e.clientY)
     if (tool === 'select') {
-      select(hitTest(p))
+      const hit = hitTest(p)
+      select(hit)
+      if (hit) {
+        const sh = chart.shapes.find((s) => s.id === hit)
+        if (sh) {
+          const raw = toCanvasRaw(e.clientX, e.clientY)
+          moving.current = { id: hit, sx: raw.x, sy: raw.y, orig: sh.points.map((pp) => ({ ...pp })) }
+          canvasRef.current?.setPointerCapture(e.pointerId)
+        }
+      }
       return
     }
     if (mask && !isDrawable(p)) return
@@ -416,6 +436,23 @@ export function EditorCanvas(): React.JSX.Element {
       const pan = panning.current
       userAdjusted.current = true
       setView((v) => ({ ...v, tx: pan.tx + (e.clientX - pan.x), ty: pan.ty + (e.clientY - pan.y) }))
+      return
+    }
+    if (moving.current) {
+      const raw = toCanvasRaw(e.clientX, e.clientY)
+      const free = e.metaKey || e.altKey // hold Cmd/Opt to move freely (no pixel snap)
+      let dx = raw.x - moving.current.sx
+      let dy = raw.y - moving.current.sy
+      if (!free) {
+        dx = Math.round(dx)
+        dy = Math.round(dy)
+      }
+      useStore
+        .getState()
+        .setShapePoints(
+          moving.current.id,
+          moving.current.orig.map((pt) => ({ x: pt.x + dx, y: pt.y + dy }))
+        )
       return
     }
     const p = toCanvas(e.clientX, e.clientY)
@@ -441,7 +478,7 @@ export function EditorCanvas(): React.JSX.Element {
         addShape({
           type: 'freehand',
           points: pts,
-          ...(tool === 'pixelpen' ? { strokeWidth: 1, glowRadius: 6, glowIntensity: 0.5 } : {})
+          ...(tool === 'pixelpen' ? { strokeWidth: 1 } : {})
         })
     } else if (draft.type === 'line') {
       if (dist(a, b) >= MIN_SIZE) addShape({ type: 'line', points: [a, b] })
@@ -455,6 +492,11 @@ export function EditorCanvas(): React.JSX.Element {
   const onPointerUp = (e: RPointerEvent<HTMLCanvasElement>): void => {
     if (panning.current) {
       panning.current = null
+      canvasRef.current?.releasePointerCapture(e.pointerId)
+      return
+    }
+    if (moving.current) {
+      moving.current = null
       canvasRef.current?.releasePointerCapture(e.pointerId)
       return
     }

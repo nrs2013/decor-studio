@@ -14,7 +14,7 @@ export function createChart(canvas: { w: number; h: number }): Chart {
     shapes: [],
     fixtures: [],
     syphon: { name: 'DECOR STUDIO' },
-    settings: { holdOnTimeout: true, gamma: false }
+    settings: { holdOnTimeout: true, gamma: false, glow: false, glowAmount: 14 }
   }
 }
 
@@ -25,9 +25,7 @@ export function addShape(
   const shape: Shape = {
     id: newId('shape'),
     display: 'stroke',
-    strokeWidth: 6,
-    glowRadius: 12,
-    glowIntensity: 0.8,
+    strokeWidth: 1,
     ...init
   } as Shape
   return { ...chart, shapes: [...chart.shapes, shape] }

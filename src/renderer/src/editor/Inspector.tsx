@@ -3,6 +3,7 @@ import type { ChannelMode, DisplayMode } from '../model/types'
 import { C, F, buttonStyle, inputStyle, fieldLabel } from '../ui/tokens'
 import { channelCount } from '../dmx/channel-math'
 import { addressAt, formatDmx } from '../dmx/address'
+import { NumberField } from '../ui/NumberField'
 
 const DISPLAY_MODES: DisplayMode[] = ['stroke', 'fill', 'both']
 const CHANNEL_MODES: { id: ChannelMode; label: string }[] = [
@@ -70,35 +71,11 @@ export function Inspector(): React.JSX.Element {
       )}
 
       <Field label="Width">
-        <input
-          type="number"
-          min={1}
-          max={200}
+        <NumberField
           value={shape.strokeWidth}
-          style={inputStyle}
-          onChange={(e) => updateShape(shape.id, { strokeWidth: Number(e.target.value) })}
-        />
-      </Field>
-
-      <Field label={`Glow Size  ${shape.glowRadius}px`}>
-        <input
-          type="range"
-          min={0}
-          max={80}
-          value={shape.glowRadius}
-          style={{ width: '100%', accentColor: C.accent }}
-          onChange={(e) => updateShape(shape.id, { glowRadius: Number(e.target.value) })}
-        />
-      </Field>
-
-      <Field label={`Glow  ${Math.round(shape.glowIntensity * 100)}%`}>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={Math.round(shape.glowIntensity * 100)}
-          style={{ width: '100%', accentColor: C.accent }}
-          onChange={(e) => updateShape(shape.id, { glowIntensity: Number(e.target.value) / 100 })}
+          min={1}
+          max={500}
+          onChange={(v) => updateShape(shape.id, { strokeWidth: v })}
         />
       </Field>
 
@@ -108,34 +85,20 @@ export function Inspector(): React.JSX.Element {
         <div style={{ display: 'flex', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <label style={fieldLabel}>Count</label>
-            <input
-              type="number"
+            <NumberField
+              value={shape.repeat?.count ?? 1}
               min={1}
               max={4096}
-              value={shape.repeat?.count ?? 1}
-              style={inputStyle}
-              onChange={(e) => setRepeat({ count: Math.max(1, Math.min(4096, Number(e.target.value))) })}
+              onChange={(v) => setRepeat({ count: v })}
             />
           </div>
           <div style={{ flex: 1 }}>
             <label style={fieldLabel}>Pitch X</label>
-            <input
-              type="number"
-              value={shape.repeat?.dx ?? 10}
-              style={inputStyle}
-              disabled={!hasRepeat}
-              onChange={(e) => setRepeat({ dx: Number(e.target.value) })}
-            />
+            <NumberField value={shape.repeat?.dx ?? 10} onChange={(v) => setRepeat({ dx: v })} />
           </div>
           <div style={{ flex: 1 }}>
             <label style={fieldLabel}>Pitch Y</label>
-            <input
-              type="number"
-              value={shape.repeat?.dy ?? 0}
-              style={inputStyle}
-              disabled={!hasRepeat}
-              onChange={(e) => setRepeat({ dy: Number(e.target.value) })}
-            />
+            <NumberField value={shape.repeat?.dy ?? 0} onChange={(v) => setRepeat({ dy: v })} />
           </div>
         </div>
       </div>
@@ -155,27 +118,19 @@ export function Inspector(): React.JSX.Element {
         <>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <Field label="Universe">
-              <input
-                type="number"
+              <NumberField
+                value={fixture.universe}
                 min={0}
                 max={32767}
-                value={fixture.universe}
-                style={inputStyle}
-                onChange={(e) => upsertFixture(shape.id, { universe: Number(e.target.value) })}
+                onChange={(v) => upsertFixture(shape.id, { universe: v })}
               />
             </Field>
             <Field label="DMX Addr">
-              <input
-                type="number"
+              <NumberField
+                value={fixture.start}
                 min={1}
                 max={512}
-                value={fixture.start}
-                style={inputStyle}
-                onChange={(e) =>
-                  upsertFixture(shape.id, {
-                    start: Math.min(512, Math.max(1, Number(e.target.value)))
-                  })
-                }
+                onChange={(v) => upsertFixture(shape.id, { start: v })}
               />
             </Field>
           </div>
@@ -207,15 +162,11 @@ export function Inspector(): React.JSX.Element {
 
           {hasRepeat && (
             <Field label={`Offset (default ${channelCount(fixture.mode)})`}>
-              <input
-                type="number"
+              <NumberField
+                value={fixture.addressStep ?? channelCount(fixture.mode)}
                 min={1}
                 max={512}
-                value={fixture.addressStep ?? channelCount(fixture.mode)}
-                style={inputStyle}
-                onChange={(e) =>
-                  upsertFixture(shape.id, { addressStep: Math.max(1, Number(e.target.value)) })
-                }
+                onChange={(v) => upsertFixture(shape.id, { addressStep: v })}
               />
             </Field>
           )}

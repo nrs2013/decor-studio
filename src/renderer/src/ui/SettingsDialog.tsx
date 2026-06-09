@@ -15,6 +15,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): React.JSX.
   const setGamma = useStore((s) => s.setGamma)
   const setHoldOnTimeout = useStore((s) => s.setHoldOnTimeout)
   const setSyphonName = useStore((s) => s.setSyphonName)
+  const setGlow = useStore((s) => s.setGlow)
+  const setGlowAmount = useStore((s) => s.setGlowAmount)
 
   const tooBig = chart.canvas.w > MAX_W || chart.canvas.h > MAX_H
 
@@ -85,6 +87,26 @@ export function SettingsDialog({ onClose }: { onClose: () => void }): React.JSX.
           onText="Hold Last"
           offText="Zero"
         />
+        <Toggle
+          label="Glow — whole output (smoke look)"
+          on={chart.settings.glow}
+          onChange={setGlow}
+          onText="ON"
+          offText="OFF"
+        />
+        {chart.settings.glow && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={fieldLabel}>Glow Amount {chart.settings.glowAmount}px</label>
+            <input
+              type="range"
+              min={1}
+              max={60}
+              value={chart.settings.glowAmount}
+              style={{ width: '100%', accentColor: C.accent }}
+              onChange={(e) => setGlowAmount(Number(e.target.value))}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

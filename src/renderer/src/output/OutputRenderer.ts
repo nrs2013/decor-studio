@@ -15,6 +15,7 @@ const ZEROS = new Uint8Array(512)
  */
 export class OutputRenderer {
   private ctx: CanvasRenderingContext2D
+  private bloom?: HTMLCanvasElement
 
   constructor(private canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -73,6 +74,24 @@ export class OutputRenderer {
         this.drawShape(shape, rgb, dx * i, dy * i)
       }
     }
+
+    // Optional global "smoke" glow: a whole-output bloom. The LEDs themselves stay crisp;
+    // this just mimics how stage haze spreads them. Off by default.
+    if (chart.settings.glow) {
+      const amt = Math.max(1, chart.settings.glowAmount || 12)
+      if (!this.bloom) this.bloom = document.createElement('canvas')
+      this.bloom.width = w
+      this.bloom.height = h
+      const bctx = this.bloom.getContext('2d')
+      if (bctx) {
+        bctx.clearRect(0, 0, w, h)
+        bctx.filter = `blur(${amt}px)`
+        bctx.drawImage(this.canvas, 0, 0)
+        bctx.filter = 'none'
+        ctx.globalCompositeOperation = 'lighter'
+        ctx.drawImage(this.bloom, 0, 0)
+      }
+    }
     ctx.globalCompositeOperation = 'source-over'
     ctx.globalAlpha = 1
   }
@@ -92,23 +111,10 @@ export class OutputRenderer {
     const doFill = !open && shape.display !== 'stroke'
     ctx.strokeStyle = col
     ctx.fillStyle = col
-    ctx.lineWidth = shape.strokeWidth || 4
-
-    const glowPasses = 1 + Math.round((shape.glowIntensity ?? 0) * 2)
-    const paint = (): void => {
-      this.buildPath(shape)
-      if (doFill) ctx.fill()
-      if (doStroke) ctx.stroke()
-    }
-
-    if (shape.glowRadius > 0) {
-      ctx.shadowColor = col
-      ctx.shadowBlur = shape.glowRadius
-      for (let i = 0; i < glowPasses; i++) paint()
-      ctx.shadowBlur = 0
-      ctx.shadowColor = 'transparent'
-    }
-    paint()
+    ctx.lineWidth = shape.strokeWidth || 1
+    this.buildPath(shape)
+    if (doFill) ctx.fill()
+    if (doStroke) ctx.stroke()
     ctx.restore()
   }
 
