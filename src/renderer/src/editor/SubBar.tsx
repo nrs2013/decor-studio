@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { createChart, newId } from '../model/chart-model'
 import { saveChartToFile, openChartFromFile } from '../io/file-ops'
 import { SettingsDialog } from '../ui/SettingsDialog'
+import { FillDialog } from '../ui/FillDialog'
 import { C, F, buttonStyle } from '../ui/tokens'
 
 interface DecorApi {
@@ -38,6 +39,7 @@ export function SubBar(): React.JSX.Element {
   const setUnderlayVisible = useStore((s) => s.setUnderlayVisible)
   const setUnderlayMask = useStore((s) => s.setUnderlayMask)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [fillOpen, setFillOpen] = useState(false)
   const u = chart.underlay
 
   const loadUnderlay = async (): Promise<void> => {
@@ -119,6 +121,15 @@ export function SubBar(): React.JSX.Element {
               反転
             </button>
           )}
+          {u.mask?.enabled && (
+            <button
+              style={{ ...buttonStyle({ accent: C.green, accentRGB: '168,232,120' }), padding: '5px 10px' }}
+              onClick={() => setFillOpen(true)}
+              title="マスク内に棒/ドットを自動敷き詰め＋連番採番"
+            >
+              敷き詰め
+            </button>
+          )}
           <div style={sep} />
           <button
             style={{ ...buttonStyle({ accent: '#e0726a', accentRGB: '224,114,106' }), padding: '5px 10px' }}
@@ -135,6 +146,7 @@ export function SubBar(): React.JSX.Element {
       </span>
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {fillOpen && <FillDialog onClose={() => setFillOpen(false)} />}
     </div>
   )
 }

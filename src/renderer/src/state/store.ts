@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Chart, Shape, Fixture, ChannelMode } from '../model/types'
 import { createChart, addShape as addShapeToChart, newId } from '../model/chart-model'
 import type { MaskData } from '../ui/mask'
+import { addressAt } from '../dmx/address'
 
 export type Mode = 'edit' | 'live'
 export type Tool =
@@ -48,6 +49,17 @@ interface AppState {
   setSnap: (on: boolean) => void
   setUnderlayMask: (patch: { enabled?: boolean; invert?: boolean }) => void
   setMaskData: (m: MaskData | null) => void
+  /** Auto-fill the masked drawable area with a grid of addressed cells; returns the count. */
+  autoFill: (opts: {
+    pitchX: number
+    pitchY: number
+    cellW: number
+    cellH: number
+    universe: number
+    start: number
+    mode: ChannelMode
+    step: number
+  }) => number
   setCanvasSize: (w: number, h: number) => void
   setGamma: (on: boolean) => void
   setHoldOnTimeout: (on: boolean) => void
@@ -236,7 +248,48 @@ export const useStore = create<AppState>()((set, get) => ({
         chart: { ...s.chart, underlay: { ...s.chart.underlay, mask: { ...cur, ...patch } } }
       }
     }),
-  setMaskData: (m) => set({ mask: m })
+  setMaskData: (m) => set({ mask: m }),
+  autoFill: (opts) => {
+    const { mask } = get()
+    if (!mask) return 0
+    const px = Math.max(1, Math.round(opts.pitchX))
+    const py = Math.max(1, Math.round(opts.pitchY))
+    const cap = 4000
+    const newShapes: Shape[] = []
+    const newFixtures: Fixture[] = []
+    let i = 0
+    for (let y = Math.floor(py / 2); y < mask.h && newShapes.length < cap; y += py) {
+      for (let x = Math.floor(px / 2); x < mask.w && newShapes.length < cap; x += px) {
+        if (mask.bitmap[y * mask.w + x] !== 1) continue
+        const id = newId('shape')
+        const fid = newId('fx')
+        const a = addressAt(opts.universe, opts.start, opts.mode, opts.step, i)
+        newShapes.push({
+          id,
+          type: 'rect',
+          points: [
+            { x: Math.round(x - opts.cellW / 2), y: Math.round(y - opts.cellH / 2) },
+            { x: Math.round(x + opts.cellW / 2), y: Math.round(y + opts.cellH / 2) }
+          ],
+          display: 'fill',
+          strokeWidth: 1,
+          glowRadius: Math.max(2, Math.round(Math.max(opts.cellW, opts.cellH) * 1.2)),
+          glowIntensity: 0.8,
+          fixtureId: fid
+        })
+        newFixtures.push({ id: fid, shapeId: id, universe: a.universe, start: a.start, mode: opts.mode })
+        i++
+      }
+    }
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        shapes: [...s.chart.shapes, ...newShapes],
+        fixtures: [...s.chart.fixtures, ...newFixtures]
+      }
+    }))
+    return newShapes.length
+  }
 }))
 
 // Test/debug hook: lets the browser preview drive the store (e.g. seed demo shapes).
