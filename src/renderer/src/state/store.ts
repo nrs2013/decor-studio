@@ -23,6 +23,7 @@ interface AppState {
   lastSeenByUniverse: Record<number, number>
   manualMode: boolean
   manualByFixture: Record<string, [number, number, number]>
+  snapToPixel: boolean
 
   setChart: (c: Chart) => void
   setMode: (m: Mode) => void
@@ -42,6 +43,7 @@ interface AppState {
   setManualMode: (on: boolean) => void
   setManualColor: (fixtureId: string, rgb: [number, number, number]) => void
   setManualAll: (rgb: [number, number, number] | null) => void
+  setSnap: (on: boolean) => void
   setCanvasSize: (w: number, h: number) => void
   setGamma: (on: boolean) => void
   setHoldOnTimeout: (on: boolean) => void
@@ -110,6 +112,7 @@ export const useStore = create<AppState>()((set, get) => ({
   lastSeenByUniverse: {},
   manualMode: false,
   manualByFixture: {},
+  snapToPixel: true,
 
   setChart: (chart) => set({ chart, selectedId: null }),
   setMode: (mode) => set({ mode }),
@@ -218,7 +221,8 @@ export const useStore = create<AppState>()((set, get) => ({
     set((s) => ({ chart: { ...s.chart, settings: { ...s.chart.settings, gamma: on } } })),
   setHoldOnTimeout: (on) =>
     set((s) => ({ chart: { ...s.chart, settings: { ...s.chart.settings, holdOnTimeout: on } } })),
-  setSyphonName: (name) => set((s) => ({ chart: { ...s.chart, syphon: { name } } }))
+  setSyphonName: (name) => set((s) => ({ chart: { ...s.chart, syphon: { name } } })),
+  setSnap: (on) => set({ snapToPixel: on })
 }))
 
 // Test/debug hook: lets the browser preview drive the store (e.g. seed demo shapes).

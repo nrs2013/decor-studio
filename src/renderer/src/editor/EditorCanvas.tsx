@@ -27,10 +27,12 @@ interface View {
 function ShapeEl({
   shape,
   selected,
+  crisp = false,
   onPick
 }: {
   shape: Shape
   selected: boolean
+  crisp?: boolean
   onPick?: (e: RPointerEvent) => void
 }): React.JSX.Element | null {
   const sw = shape.strokeWidth || 4
@@ -45,6 +47,7 @@ function ShapeEl({
     fill,
     strokeLinejoin: 'round' as const,
     strokeLinecap: 'round' as const,
+    shapeRendering: crisp ? 'crispEdges' : 'geometricPrecision',
     onPointerDown: onPick,
     style: { cursor: onPick ? 'pointer' : 'default' }
   }
@@ -81,6 +84,8 @@ export function EditorCanvas(): React.JSX.Element {
   const selectedId = useStore((s) => s.selectedId)
   const select = useStore((s) => s.select)
   const addShape = useStore((s) => s.addShape)
+  const snapToPixel = useStore((s) => s.snapToPixel)
+  const setSnap = useStore((s) => s.setSnap)
 
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -106,6 +111,19 @@ export function EditorCanvas(): React.JSX.Element {
     if (cw === 0 || ch === 0) return
     const scale = Math.min(cw / w, ch / h) * 0.92
     setView({ scale, tx: (cw - w * scale) / 2, ty: (ch - h * scale) / 2 })
+  }
+
+  /** Zoom to an absolute scale, keeping the viewport centre fixed. */
+  const zoomTo = (scale: number): void => {
+    const el = wrapRef.current
+    if (!el) return
+    userAdjusted.current = true
+    const cxs = el.clientWidth / 2
+    const cys = el.clientHeight / 2
+    const v = viewRef.current
+    const cx = (cxs - v.tx) / v.scale
+    const cy = (cys - v.ty) / v.scale
+    setView({ scale, tx: cxs - cx * scale, ty: cys - cy * scale })
   }
 
   useLayoutEffect(() => {
@@ -149,7 +167,7 @@ export function EditorCanvas(): React.JSX.Element {
       const my = e.clientY - r.top
       const v = viewRef.current
       const factor = Math.exp(-e.deltaY * 0.0015)
-      const scale = clamp(v.scale * factor, 0.05, 10)
+      const scale = clamp(v.scale * factor, 0.05, 64)
       const cx = (mx - v.tx) / v.scale
       const cy = (my - v.ty) / v.scale
       userAdjusted.current = true
@@ -174,7 +192,9 @@ export function EditorCanvas(): React.JSX.Element {
   const toCanvas = (clientX: number, clientY: number): Point => {
     const r = svgRef.current!.getBoundingClientRect()
     const v = viewRef.current
-    return { x: (clientX - r.left - v.tx) / v.scale, y: (clientY - r.top - v.ty) / v.scale }
+    const x = (clientX - r.left - v.tx) / v.scale
+    const y = (clientY - r.top - v.ty) / v.scale
+    return snapToPixel ? { x: Math.round(x), y: Math.round(y) } : { x, y }
   }
 
   const onPointerDown = (e: RPointerEvent<SVGSVGElement>): void => {
@@ -288,7 +308,7 @@ export function EditorCanvas(): React.JSX.Element {
               height={h}
               opacity={chart.underlay.opacity}
               preserveAspectRatio="none"
-              style={{ pointerEvents: 'none' }}
+              style={{ pointerEvents: 'none', imageRendering: 'pixelated' }}
             />
           )}
           {/* canvas border */}
@@ -303,11 +323,30 @@ export function EditorCanvas(): React.JSX.Element {
             style={{ pointerEvents: 'none' }}
           />
 
+          {/* pixel grid: 10px major when zoomed, 1px minor at high zoom */}
+          {view.scale >= 1.5 && (
+            <>
+              <defs>
+                <pattern id="grid-minor" width={1} height={1} patternUnits="userSpaceOnUse">
+                  <path d="M1 0 H0 V1" fill="none" stroke="#2b2926" strokeWidth={0.7 / view.scale} />
+                </pattern>
+                <pattern id="grid-major" width={10} height={10} patternUnits="userSpaceOnUse">
+                  <path d="M10 0 H0 V10" fill="none" stroke="#4d473f" strokeWidth={1 / view.scale} />
+                </pattern>
+              </defs>
+              {view.scale >= 6 && (
+                <rect x={0} y={0} width={w} height={h} fill="url(#grid-minor)" style={{ pointerEvents: 'none' }} />
+              )}
+              <rect x={0} y={0} width={w} height={h} fill="url(#grid-major)" style={{ pointerEvents: 'none' }} />
+            </>
+          )}
+
           {chart.shapes.map((shape) => (
             <ShapeEl
               key={shape.id}
               shape={shape}
               selected={shape.id === selectedId}
+              crisp={snapToPixel}
               onPick={
                 tool === 'select'
                   ? (e) => {
@@ -332,6 +371,7 @@ export function EditorCanvas(): React.JSX.Element {
                 glowIntensity: 0
               }}
               selected
+              crisp={snapToPixel}
             />
           )}
 
@@ -368,14 +408,31 @@ export function EditorCanvas(): React.JSX.Element {
         </g>
       </svg>
 
-      {/* zoom / fit controls */}
+      {/* zoom / fit / snap controls */}
       <div style={{ position: 'absolute', left: 10, bottom: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
         <button onClick={fit} style={zoomBtn}>
           FIT
         </button>
-        <span style={{ fontFamily: F.mono, fontSize: 11, color: C.hint }}>
+        <button onClick={() => zoomTo(1)} style={zoomBtn}>
+          100%
+        </button>
+        <button onClick={() => zoomTo(8)} style={zoomBtn}>
+          800%
+        </button>
+        <span style={{ fontFamily: F.mono, fontSize: 11, color: C.hint, minWidth: 44, textAlign: 'center' }}>
           {Math.round(view.scale * 100)}%
         </span>
+        <button
+          onClick={() => setSnap(!snapToPixel)}
+          style={{
+            ...zoomBtn,
+            background: snapToPixel ? C.accent : 'rgba(123,197,232,0.15)',
+            color: snapToPixel ? '#0a0a0a' : C.white
+          }}
+          title="1ピクセル単位に吸着して描く"
+        >
+          {snapToPixel ? 'PX吸着 ON' : 'PX吸着 OFF'}
+        </button>
       </div>
       {tool === 'polyline' && draft && (
         <div style={hintStyle}>クリックで頂点追加 / ダブルクリックで確定 / Escでキャンセル</div>
