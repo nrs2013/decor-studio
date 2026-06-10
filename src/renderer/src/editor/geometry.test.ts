@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cellsBetween } from './geometry'
+import { cellsBetween, shapeIntersectsRect } from './geometry'
 
 describe('cellsBetween (paint path)', () => {
   it('horizontal / vertical runs hit every cell', () => {
@@ -28,5 +28,32 @@ describe('cellsBetween (paint path)', () => {
 
   it('same cell -> empty path', () => {
     expect(cellsBetween({ x: 2, y: 2 }, { x: 2, y: 2 })).toEqual([])
+  })
+})
+
+describe('shapeIntersectsRect (囲み選択の実体判定)', () => {
+  const chain = {
+    id: 'g',
+    type: 'freehand' as const,
+    points: [
+      { x: 0.5, y: 0.5 }, { x: 10.5, y: 0.5 }, { x: 10.5, y: 10.5 }
+    ],
+    display: 'stroke' as const,
+    strokeWidth: 1
+  }
+  it('L字チェーンの「空っぽの内側」を囲んでも選ばれない', () => {
+    // bbox(0..10, 0..10)とは交差するが、点は(2..8, 2..8)に存在しない
+    expect(shapeIntersectsRect(chain, 2, 2, 8, 8)).toBe(false)
+  })
+  it('実体に枠が触れれば選ばれる', () => {
+    expect(shapeIntersectsRect(chain, 8, -1, 12, 2)).toBe(true)
+  })
+  it('両端が枠の外でも、横切るLineは選ばれる', () => {
+    const line = {
+      id: 'l', type: 'line' as const,
+      points: [ { x: -5, y: 5 }, { x: 20, y: 5 } ],
+      display: 'stroke' as const, strokeWidth: 1
+    }
+    expect(shapeIntersectsRect(line, 0, 0, 10, 10)).toBe(true)
   })
 })

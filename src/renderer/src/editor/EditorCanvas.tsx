@@ -9,7 +9,14 @@ import {
 import { useStore } from '../state/store'
 import type { Point, Shape } from '../model/types'
 import { C, F } from '../ui/tokens'
-import { cornerBounds, traceShape, shapeArrayBounds, cellsBetween, type Bounds } from './geometry'
+import {
+  cornerBounds,
+  traceShape,
+  shapeArrayBounds,
+  shapeIntersectsRect,
+  cellsBetween,
+  type Bounds
+} from './geometry'
 import { buildCandidates, salientOf, snap1D, snapMoveDelta, softAxis, type SnapCand } from './snapping'
 import { cleanPaintStroke, regenChain } from './stroke-fit'
 import { findDrawableRegions, type Region } from './regions'
@@ -1502,11 +1509,10 @@ export function EditorCanvas(): React.JSX.Element {
       const y1 = Math.max(m.y0, m.y1)
       const st = useStore.getState()
       if (x1 - x0 > 2 || y1 - y0 > 2) {
+        // real geometry test — a hollow L-chain must not be grabbed through the empty
+        // interior of its bounding box
         const inIds = chart.shapes
-          .filter((s) => {
-            const b = shapeArrayBounds(s)
-            return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
-          })
+          .filter((s) => shapeIntersectsRect(s, x0, y0, x1, y1))
           .map((s) => s.id)
         st.selectMany(m.add ? Array.from(new Set([...st.selectedIds, ...inIds])) : inIds)
         st.setPasteMark(null)
@@ -1630,25 +1636,28 @@ export function EditorCanvas(): React.JSX.Element {
             minWidth: 160
           }}
         >
-          <button
-            style={menuBtn}
-            disabled={
-              chart.shapes.filter(
-                (s) =>
-                  selectedIds.includes(s.id) &&
-                  s.type === 'freehand' &&
-                  (s.strokeWidth || 1) <= 1 &&
-                  !s.repeat
-              ).length < 2
-            }
-            onClick={() => {
-              const st = useStore.getState()
-              st.mergeShapes(st.selectedIds)
-              setCtxMenu(null)
-            }}
-          >
-            1本に結合（同じフェーダーで光る）
-          </button>
+          {(() => {
+            const mergeCount = chart.shapes.filter(
+              (s) =>
+                selectedIds.includes(s.id) &&
+                s.type === 'freehand' &&
+                (s.strokeWidth || 1) <= 1 &&
+                !s.repeat
+            ).length
+            return (
+              <button
+                style={menuBtn}
+                disabled={mergeCount < 2}
+                onClick={() => {
+                  const st = useStore.getState()
+                  st.mergeShapes(st.selectedIds)
+                  setCtxMenu(null)
+                }}
+              >
+                1本に結合（{mergeCount}本 → 1本・同じフェーダー）
+              </button>
+            )
+          })()}
           <button
             style={{ ...menuBtn, color: '#e0726a' }}
             onClick={() => {

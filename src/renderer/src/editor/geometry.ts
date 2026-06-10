@@ -162,6 +162,56 @@ export function cellsBetween(a: Point, b: Point): Point[] {
   return out
 }
 
+function segsCross(a: Point, b: Point, c: Point, d: Point): boolean {
+  const o = (p: Point, q: Point, r: Point): number =>
+    Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x))
+  return o(a, b, c) !== o(a, b, d) && o(c, d, a) !== o(c, d, b)
+}
+
+function segIntersectsRect(
+  a: Point,
+  b: Point,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number
+): boolean {
+  const inside = (p: Point): boolean => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1
+  if (inside(a) || inside(b)) return true
+  const c1 = { x: x0, y: y0 }
+  const c2 = { x: x1, y: y0 }
+  const c3 = { x: x1, y: y1 }
+  const c4 = { x: x0, y: y1 }
+  return (
+    segsCross(a, b, c1, c2) || segsCross(a, b, c2, c3) || segsCross(a, b, c3, c4) || segsCross(a, b, c4, c1)
+  )
+}
+
+/** True when the shape's ACTUAL geometry touches the rect — not just its bounding box.
+ *  (An L-shaped chain has a huge, mostly-empty bbox; rubber-band selection must not
+ *  grab it through that empty interior.) */
+export function shapeIntersectsRect(
+  shape: Shape,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number
+): boolean {
+  const b = shapeArrayBounds(shape)
+  if (b.x >= x1 || b.x + b.w <= x0 || b.y >= y1 || b.y + b.h <= y0) return false
+  if (shape.repeat && shape.repeat.count > 1) return true // arrays: bbox is close enough
+  if (shape.type === 'freehand') {
+    return shape.points.some((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1)
+  }
+  if (shape.type === 'line' || shape.type === 'polyline') {
+    for (let i = 1; i < shape.points.length; i++) {
+      if (segIntersectsRect(shape.points[i - 1], shape.points[i], x0, y0, x1, y1)) return true
+    }
+    return false
+  }
+  return true // closed box shapes fill their bbox closely enough
+}
+
 /** Bounds of a shape including its repeat-array extent. */
 export function shapeArrayBounds(shape: Shape): Bounds {
   const b = shapeBounds(shape)
