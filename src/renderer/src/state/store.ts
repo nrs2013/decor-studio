@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Chart, Shape, Fixture, ChannelMode, Point } from '../model/types'
 import { createChart, addShape as addShapeToChart, newId } from '../model/chart-model'
+import { eraseCellsFromChart } from '../model/erase'
 import type { MaskData } from '../ui/mask'
 import { addressAt } from '../dmx/address'
 
@@ -16,6 +17,7 @@ export type Tool =
   | 'star'
   | 'polygon'
   | 'pixelpen'
+  | 'eraser'
 
 interface AppState {
   chart: Chart
@@ -60,6 +62,8 @@ interface AppState {
   setSnap: (on: boolean) => void
   setUnderlayMask: (patch: { enabled?: boolean; invert?: boolean }) => void
   setMaskData: (m: MaskData | null) => void
+  /** Erases the given 1px cells ("x,y" keys) out of painted strokes (splits as needed). */
+  eraseCells: (keys: string[]) => void
   /** Auto-fill the masked drawable area with a grid of addressed cells; returns the count. */
   autoFill: (opts: {
     pitchX: number
@@ -279,6 +283,13 @@ export const useStore = create<AppState>()((set, get) => ({
       }
     }),
   setMaskData: (m) => set({ mask: m }),
+  eraseCells: (keys) =>
+    set((s) => {
+      const r = eraseCellsFromChart(s.chart, new Set(keys))
+      if (!r.changed) return {}
+      const selAlive = r.chart.shapes.some((sh) => sh.id === s.selectedId)
+      return { chart: r.chart, selectedId: selAlive ? s.selectedId : null }
+    }),
   autoFill: (opts) => {
     const { mask } = get()
     if (!mask) return 0

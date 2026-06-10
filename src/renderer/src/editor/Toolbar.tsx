@@ -24,6 +24,14 @@ function ToolIcon({ id }: { id: Tool }): React.JSX.Element {
             <rect x="11.7" y="0.8" width="3.4" height="3.4" />
           </g>
         )
+      case 'eraser':
+        return (
+          <g {...s} strokeLinejoin="round">
+            <path d="M9.2 2.6 L13.4 6.8 L8.2 12 H4.8 L2.6 9.8 Z" />
+            <line x1="6.6" y1="5.2" x2="10.8" y2="9.4" />
+            <line x1="3" y1="14.2" x2="13" y2="14.2" />
+          </g>
+        )
       case 'ellipse':
         return <circle cx="8" cy="8" r="5.6" {...s} />
       case 'triangle':
@@ -51,11 +59,12 @@ function ToolIcon({ id }: { id: Tool }): React.JSX.Element {
 }
 
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
-  { id: 'select', label: 'Select', hint: '選択 / 移動 / 変形（四隅・点をドラッグ）' },
-  { id: 'line', label: 'Line', hint: '直線' },
+  { id: 'select', label: 'Select', hint: '(V) 選択 / 移動 / 端や四隅をドラッグで変形' },
+  { id: 'line', label: 'Line', hint: '(L) 直線' },
   { id: 'polyline', label: 'Poly Line', hint: '折れ線（クリックで角・ダブルクリックで確定）' },
   { id: 'freehand', label: 'Pen', hint: 'なめらかな手描き' },
-  { id: 'pixelpen', label: 'Paint', hint: '1pxドット塗り（ドラッグで塗る）' },
+  { id: 'pixelpen', label: 'Paint', hint: '(P) 1pxドット塗り。Shift=直線（水平/垂直/45°）・⌘ドラッグ=その場で移動' },
+  { id: 'eraser', label: 'Eraser', hint: '(E) ドット消しゴム — はみ出した所をなぞって消す' },
   { id: 'ellipse', label: 'Bulb', hint: '丸・電球' },
   { id: 'triangle', label: 'Triangle', hint: '三角' },
   { id: 'rect', label: 'Rect', hint: '四角' },
