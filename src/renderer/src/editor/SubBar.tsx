@@ -97,7 +97,7 @@ export function SubBar(): React.JSX.Element {
           <button
             style={{ ...buttonStyle({ active: u.mask?.enabled ?? false }), padding: '5px 10px' }}
             onClick={() => setUnderlayMask({ enabled: !(u.mask?.enabled ?? false) })}
-            title="チャートの絵がある所＝LED面だけ描けるようにする（はみ出し禁止）"
+            title="チャートの透明にくり抜かれた所だけ描けるようにする（はみ出し禁止）"
           >
             Mask
           </button>
@@ -105,7 +105,7 @@ export function SubBar(): React.JSX.Element {
             <button
               style={{ ...buttonStyle({ active: u.mask?.invert ?? false }), padding: '5px 10px' }}
               onClick={() => setUnderlayMask({ invert: !(u.mask?.invert ?? false) })}
-              title="描画領域を反転（OFFにすると透明・黒い所が描画領域になります）"
+              title="描画領域を反転（ONにすると絵がある所が描画領域になります）"
             >
               Invert
             </button>

@@ -39,7 +39,7 @@
 - **精密化 A〜D 完了**：ズーム64x・1px/10pxグリッド・1px吸着・クリスプ／反復アレイ＋連番採番（`Shape.repeat`+`Fixture.addressStep`、512跨ぎは `dmx/address.ts addressAt`）／アルファPNGマスク＋自動敷き詰め `autoFill`（上限4000）／ピクセルペン／編集Canvas化（数千要素OK・1280セル検証済み）
 - **チャート主導ワークフロー（6/10 のむさん相談→同日実装・ブラウザ検証済み）**：
   - **スタート画面**＝正面玄関（`ui/StartScreen.tsx`）。チャート画像（LED面の図面）をD&D/クリックで読み込むと**キャンバスが画像の等倍ピクセルに自動設定**＋下絵＋Mask既定ON。逃げ道として Blank 1920×1080 / 3840×2160。`.decor.json` のドロップでも開ける。SubBar の New は玄関に戻る。
-  - **ピクセル規約（確定）**：**透明＝無いもの／不透明＝LED面（電飾を描ける場所）**＝ `mask.invert: true` 既定。アルファ無し画像（JPG等）は**黒判定救済**（`ui/mask.ts isEmptyPixel`、r+g+b<72=無し）。旧作品（透明=描画領域・invert無し）はそのまま開ける。
+  - **ピクセル規約（確定・のむさん最終判断 6/10）**：**チャート＝本編アートワークに電飾エリアが透明でくり抜いてある素材**。**透明のくり抜き＝電飾を描く場所／絵がある所＝対象外**＝ `mask.invert: false` 既定。アルファ無し画像（JPG等）は**黒判定救済**（`ui/mask.ts isEmptyPixel`、r+g+b<72=くり抜き扱い）。逆向き素材（LED面が不透明で描いてある）は **Invert** ボタンで反転。
   - **出力の透明化**：背景は**透明黒 (0,0,0,0)**＋Syphon送出は**premultiplied**（`OutputRenderer.readRGBA`）→ Resolume **Addは従来と完全一致**・**Alpha合成も新たに可能**に。
   - SubBar の Background ボタンは **Chart** に改名（読み込みでキャンバス追従）。
 - **テスト**：`npm test` 19本（純ロジック）。型 `npm run typecheck`。

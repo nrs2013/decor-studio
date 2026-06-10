@@ -33,7 +33,8 @@ interface AppState {
 
   setStarted: (on: boolean) => void
   /** Loads a chart image: canvas snaps to the image's pixel size, the image becomes the
-   *  underlay, and the mask defaults to "opaque = LED face = drawable" (invert ON). */
+   *  underlay, and the mask defaults to "transparent hole = where decorations go" —
+   *  the chart is show artwork with the decoration areas punched out (invert OFF). */
   applyChartImage: (dataUrl: string, w: number, h: number) => void
   setChart: (c: Chart) => void
   setMode: (m: Mode) => void
@@ -153,7 +154,7 @@ export const useStore = create<AppState>()((set, get) => ({
           dataUrl,
           opacity: 0.5,
           visible: true,
-          mask: { enabled: true, invert: true }
+          mask: { enabled: true, invert: false }
         }
       }
     })),

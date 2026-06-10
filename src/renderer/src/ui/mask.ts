@@ -27,8 +27,9 @@ export function isEmptyPixel(r: number, g: number, b: number, a: number, hasAlph
 /**
  * Builds a drawable-area mask from a chart image, scaled to the canvas size.
  * Empty pixels (transparent — or near-black when the image has no alpha) are the
- * drawable area by default; `invert` flips that. The chart workflow loads images with
- * invert ON, i.e. the visible/opaque LED faces are where decorations may be drawn.
+ * drawable area by default: the chart is show artwork with the decoration areas
+ * punched out as transparent (or black) holes. `invert` flips that for materials
+ * authored the other way around (LED faces drawn as opaque panels).
  * Also returns an overlay image that shades the non-drawable area for the editor.
  */
 export async function computeMask(

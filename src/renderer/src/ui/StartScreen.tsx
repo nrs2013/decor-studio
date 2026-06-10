@@ -116,7 +116,7 @@ export function StartScreen(): React.JSX.Element {
           チャート画像（PNG / JPG）をここにドロップ — キャンバスは画像と同じピクセル数になります
         </div>
         <div style={{ fontSize: 11, color: C.hint, fontFamily: F.ui }}>
-          絵がある所＝LED面に電飾を描けます（透明・黒い所は対象外）
+          透明にくり抜かれた所＝電飾を描く場所です（絵がある所は対象外・Invertで反転可）
         </div>
       </div>
 
