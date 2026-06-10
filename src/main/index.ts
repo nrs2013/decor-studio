@@ -226,6 +226,17 @@ app.whenReady().then(() => {
     if (res.canceled || res.filePaths.length === 0) return null
     return readFileSync(res.filePaths[0], 'utf8')
   })
+  // MVR export (grandMA3 patch + layout, GDTF embedded)
+  ipcMain.handle('mvr:save', async (_e, name: string, data: Uint8Array) => {
+    const res = await dialog.showSaveDialog({
+      defaultPath: `${name || 'decor'}.mvr`,
+      filters: [{ name: 'MVR Scene', extensions: ['mvr'] }]
+    })
+    if (res.canceled || !res.filePath) return null
+    writeFileSync(res.filePath, Buffer.from(data))
+    return res.filePath
+  })
+
   ipcMain.handle('syphon:rename', (_e, name: string) => {
     publisher.start(name || 'DECOR STUDIO')
     return true

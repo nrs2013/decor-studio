@@ -3,6 +3,11 @@ import { C, F, buttonStyle } from '../ui/tokens'
 import { channelRange, detectOverlaps } from '../dmx/patch'
 import { formatDmx } from '../dmx/address'
 import { resolveColor } from '../dmx/resolve'
+import { buildMvr } from '../io/mvr-export'
+
+interface MvrApi {
+  saveMvr?: (name: string, data: Uint8Array) => Promise<string | null>
+}
 
 export function PatchTable(): React.JSX.Element {
   const chart = useStore((s) => s.chart)
@@ -36,6 +41,22 @@ export function PatchTable(): React.JSX.Element {
     URL.revokeObjectURL(url)
   }
 
+  const exportMvr = async (): Promise<void> => {
+    const data = await buildMvr(chart)
+    const api = (window as unknown as { api?: MvrApi }).api
+    if (api?.saveMvr) {
+      await api.saveMvr(chart.name || 'decor', data)
+      return
+    }
+    const blob = new Blob([data.buffer as ArrayBuffer], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${chart.name || 'decor'}.mvr`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div style={wrapStyle}>
       <div style={headerRow}>
@@ -48,6 +69,13 @@ export function PatchTable(): React.JSX.Element {
           </div>
         )}
         <div style={{ flex: 1 }} />
+        <button
+          style={{ ...buttonStyle({}), padding: '5px 12px' }}
+          onClick={exportMvr}
+          title="grandMA3 用の MVR（パッチ＋配置＋DECOR Cell の GDTF 同梱）を書き出す"
+        >
+          Export MVR
+        </button>
         <button style={{ ...buttonStyle({}), padding: '5px 12px' }} onClick={exportCsv}>
           Export CSV
         </button>
