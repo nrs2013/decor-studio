@@ -461,21 +461,17 @@ export function EditorCanvas(): React.JSX.Element {
       ctx.stroke()
       ctx.setLineDash([])
     }
-    // paste-mode ghost: the clipboard follows the cursor, centred (whole-cell offset)
+    // paste-mode ghost: the clipboard follows the cursor, top-left anchored
     if (pasteArmed && clipboard && clipboard.shapes.length && ghostPos.current) {
       let minX = Infinity
       let minY = Infinity
-      let maxX = -Infinity
-      let maxY = -Infinity
       for (const sh of clipboard.shapes) {
         const b = shapeArrayBounds(sh)
         minX = Math.min(minX, b.x)
         minY = Math.min(minY, b.y)
-        maxX = Math.max(maxX, b.x + b.w)
-        maxY = Math.max(maxY, b.y + b.h)
       }
-      const gdx = Math.round(ghostPos.current.x - (minX + maxX) / 2)
-      const gdy = Math.round(ghostPos.current.y - (minY + maxY) / 2)
+      const gdx = Math.round(ghostPos.current.x - minX)
+      const gdy = Math.round(ghostPos.current.y - minY)
       ctx.save()
       ctx.globalAlpha = 0.45
       ctx.translate(gdx, gdy)

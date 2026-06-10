@@ -33,7 +33,7 @@ describe('stamp copy/paste (store)', () => {
     })
   })
 
-  it('copySelection + pasteAt stamps a centred clone with the same DMX address', () => {
+  it('copySelection + pasteAt stamps a clone starting at the mark (top-left)', () => {
     const st = useStore.getState()
     st.select('bar1')
     useStore.getState().copySelection()
@@ -42,10 +42,10 @@ describe('stamp copy/paste (store)', () => {
     expect(s.chart.shapes).toHaveLength(2)
     const copy = s.chart.shapes[1]
     expect(copy.id).not.toBe('bar1')
-    // 中心(12,10.5)→(100,50): 整数オフセットで .5 中心が保たれる
+    // 左上(10.5,10.5)が(100,50)へ: 整数オフセットで .5 中心が保たれる
     expect(copy.points[0].x % 1).toBeCloseTo(0.5, 9)
-    const cx = (copy.points[0].x + copy.points[3].x) / 2
-    expect(Math.abs(cx - 100)).toBeLessThanOrEqual(1)
+    expect(copy.points[0].x).toBe(100.5) // 左上スタート
+    expect(copy.points[0].y).toBe(50.5)
     expect(copy.verts).toEqual([0, 3]) // 角情報も複製
     const nf = s.chart.fixtures.find((f) => f.shapeId === copy.id)!
     expect(nf.universe).toBe(2)

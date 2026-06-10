@@ -300,24 +300,21 @@ export const useStore = create<AppState>()((set, get) => ({
   },
   setPasteArmed: (pasteArmed) => set({ pasteArmed }),
   setPasteMark: (pasteMark) => set({ pasteMark }),
-  pasteAt: (center) => {
+  pasteAt: (at) => {
     const cb = get().clipboard
     if (!cb || cb.shapes.length === 0) return
     get().beginHistory()
+    // the clicked spot is the TOP-LEFT where the pasted content starts;
     // whole-cell offset keeps painted dots crisp on their .5 centres
     let minX = Infinity
     let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
     for (const sh of cb.shapes) {
       const b = shapeArrayBounds(sh)
       minX = Math.min(minX, b.x)
       minY = Math.min(minY, b.y)
-      maxX = Math.max(maxX, b.x + b.w)
-      maxY = Math.max(maxY, b.y + b.h)
     }
-    const dx = Math.round(center.x - (minX + maxX) / 2)
-    const dy = Math.round(center.y - (minY + maxY) / 2)
+    const dx = Math.round(at.x - minX)
+    const dy = Math.round(at.y - minY)
     const idMap = new Map<string, string>()
     const newShapes: Shape[] = cb.shapes.map((sh) => {
       const nid = newId('shape')
