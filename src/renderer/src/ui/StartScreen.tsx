@@ -80,6 +80,12 @@ export function StartScreen(): React.JSX.Element {
     setStarted(true)
   }
 
+  const [ndiOpen, setNdiOpen] = useState(false)
+  const ext = (url: string) => (e: React.MouseEvent): void => {
+    e.preventDefault()
+    window.open(url) // Electron: 外部ブラウザで開く / Web版: 新規タブ
+  }
+
   // Esc clears a stale error message.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -144,6 +150,70 @@ export function StartScreen(): React.JSX.Element {
           {error}
         </div>
       )}
+
+      <div style={{ width: 'min(560px, 80vw)' }}>
+        <button
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: C.hint,
+            fontSize: 11,
+            fontFamily: F.ui,
+            cursor: 'pointer',
+            padding: 0
+          }}
+          onClick={() => setNdiOpen(!ndiOpen)}
+        >
+          {ndiOpen ? '▾' : '▸'} 別のPC（Windows含む）の Resolume へ送るには — NDI の準備
+        </button>
+        {ndiOpen && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: '12px 14px',
+              border: `0.5px solid ${C.border}`,
+              borderRadius: 6,
+              background: C.surface,
+              fontSize: 11.5,
+              lineHeight: 1.8,
+              color: C.label,
+              fontFamily: F.ui
+            }}
+          >
+            <div style={{ color: C.text, marginBottom: 4 }}>
+              同じMacの Resolume へは何も不要です（Sources に「DECOR STUDIO」が Syphon
+              として自動で出ます）。<b style={{ color: C.white }}>別のPCの Resolume</b>{' '}
+              へアルファ付きで送るには、無料アプリ「NDISyphon」を使います：
+            </div>
+            <ol style={{ margin: '4px 0', paddingLeft: 20 }}>
+              <li>
+                このMacに NDISyphon を入れる →{' '}
+                <a
+                  href="https://www.vidvox.net/download/NDISyphon_r4.dmg"
+                  onClick={ext('https://www.vidvox.net/download/NDISyphon_r4.dmg')}
+                  style={{ color: C.accent }}
+                >
+                  ダウンロード（無料・Vidvox公式）
+                </a>{' '}
+                /{' '}
+                <a
+                  href="https://docs.vidvox.net/ndisyphon/"
+                  onClick={ext('https://docs.vidvox.net/ndisyphon/')}
+                  style={{ color: C.accent }}
+                >
+                  説明ページ
+                </a>
+              </li>
+              <li>DECOR STUDIO を起動したまま NDISyphon を開き、下段のリストで「DECOR STUDIO」を選ぶ</li>
+              <li>「ローカルネットワーク」の許可を求められたら必ず許可する</li>
+              <li>
+                受け側の Resolume Arena（Windows / Mac）→ Sources → <b style={{ color: C.white }}>NDI</b>{' '}
+                に自動で現れる（アルファ付き・追加インストール不要）
+              </li>
+            </ol>
+          </div>
+        )}
+      </div>
     </main>
   )
 }

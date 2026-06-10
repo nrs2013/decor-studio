@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore, type Tool } from '../state/store'
 import { C, F, buttonStyle } from '../ui/tokens'
+import { NumberField } from '../ui/NumberField'
 
 /** Tool icons: the shape you click is the shape you draw next. */
 function ToolIcon({ id }: { id: Tool }): React.JSX.Element {
@@ -120,6 +121,8 @@ export function Toolbar({
   const setMode = useStore((s) => s.setMode)
   const tool = useStore((s) => s.tool)
   const setTool = useStore((s) => s.setTool)
+  const penWidth = useStore((s) => s.penWidth)
+  const setPenWidth = useStore((s) => s.setPenWidth)
   const editing = mode === 'edit'
 
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -197,6 +200,15 @@ export function Toolbar({
                 <ToolIcon id={t.id} />
               </button>
             ))}
+            {g.label === 'PIXEL' && (
+              <span
+                style={{ display: 'flex', alignItems: 'center', gap: 4, width: 74 }}
+                title="書く太さ（px）— Paint と矢印の⌘描きに効く。左右ドラッグで増減・クリックで入力"
+              >
+                <NumberField value={penWidth} min={1} max={500} onChange={setPenWidth} />
+                <span style={{ fontSize: 10, color: C.hint, fontFamily: F.ui }}>px</span>
+              </span>
+            )}
           </div>
         ))}
       </div>

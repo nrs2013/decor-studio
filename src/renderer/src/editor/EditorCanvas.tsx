@@ -82,11 +82,11 @@ interface Handle {
   dir?: 'n' | 's' | 'e' | 'w'
 }
 
-/** A painted dot run: 1px freehand whose points all sit on cell centres (x.5/y.5). */
+/** A painted dot run (any width): freehand whose points all sit on cell centres
+ *  (x.5/y.5) — that's what distinguishes it from a smooth Pen stroke. */
 function isPaintedRun(sh: Shape): boolean {
   return (
     sh.type === 'freehand' &&
-    (sh.strokeWidth || 1) <= 1 &&
     sh.points.length >= 1 &&
     sh.points.every(
       (p) => Math.abs((p.x % 1) - 0.5) < 1e-6 && Math.abs((p.y % 1) - 0.5) < 1e-6
@@ -200,6 +200,7 @@ export function EditorCanvas(): React.JSX.Element {
   const setSnap = useStore((s) => s.setSnap)
   const mask = useStore((s) => s.mask)
   const showDims = useStore((s) => s.showDims)
+  const penWidth = useStore((s) => s.penWidth)
   /** Punch-out islands of the chart (for the blueprint dimension labels). */
   const regions = useMemo<Region[]>(
     () => (mask ? findDrawableRegions(mask.bitmap, mask.w, mask.h) : []),
@@ -419,9 +420,9 @@ export function EditorCanvas(): React.JSX.Element {
     ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty)
     if (draft) {
       if (tool === 'pixelpen' || paintFromSelect.current) {
-        // paint feel: every visited 1px cell fills in as you drag — drawn at the same
+        // paint feel: every visited cell fills in as you drag — drawn at the same
         // display width as the committed stroke, so nothing "changes" on release
-        const s2 = Math.max(1, boostRef.current)
+        const s2 = Math.max(penWidth, boostRef.current)
         ctx.fillStyle = C.accent
         for (const pp of draft.points) ctx.fillRect(pp.x - s2 / 2, pp.y - s2 / 2, s2, s2)
       } else {
@@ -1435,7 +1436,7 @@ export function EditorCanvas(): React.JSX.Element {
         const id = addShape({
           type: 'freehand',
           points: pp,
-          ...(isPaint ? { strokeWidth: 1 } : {})
+          ...(isPaint ? { strokeWidth: penWidth } : {})
         })
         if (isPaint) {
           // なぞり×自動清書: fit the raw trail on release. Recorded as its own history
@@ -1657,11 +1658,7 @@ export function EditorCanvas(): React.JSX.Element {
         >
           {(() => {
             const mergeCount = chart.shapes.filter(
-              (s) =>
-                selectedIds.includes(s.id) &&
-                s.type === 'freehand' &&
-                (s.strokeWidth || 1) <= 1 &&
-                !s.repeat
+              (s) => selectedIds.includes(s.id) && isPaintedRun(s) && !s.repeat
             ).length
             return (
               <button

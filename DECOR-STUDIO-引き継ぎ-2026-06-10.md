@@ -33,6 +33,10 @@
 
 **送信ソフト＝grandMA3 onPC**（のむさん回答・6/10）。MA3 onPCは**Mac版が存在し、ソフト単体でArt-Net出力可能**（MA2と違いハード不要）。§0の容疑はそのまま有効：①送信側Macの「ローカルネットワーク」許可 ②MA3の出力設定（**Menu → In & Out → DMX Protocols → Art-Net**で Output行をActive・宛先 `192.168.1.171`・Universe対応、出力NICはMenu→Network）。**MVR書き出し対応済み**（下記）なので、パッチはDECOR→MVR→MA3取り込みで一致させられる。
 
+## 0.6 別PC（Windows含む）のResolumeへの送り方＝NDI（確定・導入済み）
+
+**本番はResolume＝Windows機・DECORとは別マシン**とのむさんが明言（6/10）→ Syphonは同一Mac限定なので**NDI**で送る。**Resolume公式がNDI入力（任意解像度・アルファ付き）を明記**しており確定。最簡ルート＝**Vidvox「NDISyphon」（無料）をDECOR側Macに入れてSyphon→NDI変換**。このMacには導入済み（`/Applications/NDISyphon.app`・Vidvox正規署名・Intel版だがRosetta済み・NDI部品同梱）。使い方：NDISyphon起動→下段リストで「DECOR STUDIO」を選ぶ→ローカルネットワーク許可。受け側ArenaはSources→NDIに自動表示。**玄関（StartScreen）に配布用の案内＋DLリンクを常設済み**。将来の本命＝DECOR本体へのNDI送信内蔵（中工事・必要になったら）。
+
 ## 1. このアプリは何（30秒）
 
 コンサートLEDに出す「電飾」を本物のDMX卓（Art-Net）で光らせるMacアプリ（Electron）。電飾以外は黒で出し、**Syphon→Resolume ArenaにAdd合成**で本番映像に乗せる。詳細仕様は `docs/superpowers/specs/`、運用手順は `DECOR-STUDIO-使い方-2026-06-08.md`。
@@ -95,6 +99,7 @@
   - **⌘早とちり修正（同日）**：⌘押下は`pendingCmdPaint`で保留し、**別セルへ動いた瞬間だけ**描き始める。⌘クリック（ドラッグ無し）＝通常クリック（線上=選択／空=位置マーク）。これでゴミ1〜2ドット線と選択フラッシュが消滅。
   - **ペーストは左上スタート**（真ん中合わせ→クリック点=コピー内容の左上に変更・ゴーストも同基準）。
   - **表示太さ補正の再修正**：scale≥1 は boost=1 固定（100%で1px線が2px表示されていた）。描画中ドット下書きも同じ表示幅に統一。
+- **書く太さ（penWidth・6/10）**：道具バーPIXEL島に**pxスクラブ欄**（1〜500・自由な数値）。Paintと**矢印の⌘描き**の両方がこの太さで書く（既定1px）。塗り中プレビューも同太さ。**太い塗り線でも角編集・端引っ張り・結合・消しゴムが効く**よう、painted run判定を「太さ≤1」から「全点がセル中心(.5)」に緩和（`isPaintedRun`/`merge-runs.isRun`）。
 - **MVR書き出し（6/10 のむさん要望「GDTFに書き出せる？」→MVRが正解と整理→実装・自動解凍検査済み）**：PatchTableに **Export MVR** ボタン。`io/mvr-export.ts` が `.mvr`（ZIP・STORE圧縮）を生成：`GeneralSceneDescription.xml`（全Fixture＝**反復アレイも1灯ずつ展開**・絶対番地 `universe*512+start`・チャート座標→mm配置 1px=10mm）＋同梱 `DECOR Cell.gdtf`（DMXモード4種: RGB/RGB Dim/Dim/RGBW Dim・ColorAdd_R/G/B/W+Dimmer属性）。**grandMA3 onPC で Import MVR するとパッチ＋配置が一括で入る**。Macアプリは保存ダイアログ（`mvr:save` IPC）、Web版はダウンロード。**MA3実機での取り込み確認は未実施**（次回送信側Macで要確認）。テスト58本（MVR解凍検査3本込み）。
 - **くり抜きの寸法線（6/10 のむさん相談→GO→実装・目視確認済み）**：チャートの透明くり抜きの**島を自動検出**（`editor/regions.ts` 連結成分・bbox・minArea4・最大200島）し、**図面風の寸法線**（上辺に←→とX値・左辺に↕とY値・画面基準10pxモノ字+チップ）を編集室にのみ表示。**画面上46px未満の辺は自動省略**（ズームで出現）。SubBar **Sizes** ボタンでON/OFF（既定ON・store `showDims`）。L字等の変形は外接箱の寸法。Syphon出力には乗らない。テスト52本。
 - **テスト**：`npm test` 19本（純ロジック）。型 `npm run typecheck`。

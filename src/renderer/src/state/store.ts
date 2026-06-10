@@ -35,6 +35,8 @@ interface AppState {
   manualMode: boolean
   manualByFixture: Record<string, [number, number, number]>
   snapToPixel: boolean
+  /** Stroke width (px) that Paint / ⌘-paint writes with. */
+  penWidth: number
   /** Blueprint-style W/H dimension labels on the chart's punch-out islands. */
   showDims: boolean
   mask: MaskData | null
@@ -102,6 +104,7 @@ interface AppState {
   setMaskData: (m: MaskData | null) => void
   setMaskEmpty: (on: boolean) => void
   setShowDims: (on: boolean) => void
+  setPenWidth: (w: number) => void
   /** Erases the given 1px cells ("x,y" keys) out of painted strokes (splits as needed). */
   eraseCells: (keys: string[]) => void
   /** Auto-fill the masked drawable area with a grid of addressed cells; returns the count. */
@@ -186,6 +189,7 @@ export const useStore = create<AppState>()((set, get) => ({
   manualMode: false,
   manualByFixture: {},
   snapToPixel: true,
+  penWidth: 1,
   showDims: true,
   mask: null,
   maskEmpty: false,
@@ -483,6 +487,7 @@ export const useStore = create<AppState>()((set, get) => ({
   setMaskData: (m) => set({ mask: m }),
   setMaskEmpty: (maskEmpty) => set({ maskEmpty }),
   setShowDims: (showDims) => set({ showDims }),
+  setPenWidth: (w) => set({ penWidth: Math.max(1, Math.min(500, Math.round(w))) }),
   eraseCells: (keys) => {
     get().beginHistory('erase')
     set((s) => {
