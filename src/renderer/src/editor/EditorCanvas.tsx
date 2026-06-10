@@ -200,6 +200,7 @@ export function EditorCanvas(): React.JSX.Element {
   const setSnap = useStore((s) => s.setSnap)
   const mask = useStore((s) => s.mask)
   const showDims = useStore((s) => s.showDims)
+  const showIds = useStore((s) => s.showIds)
   const penWidth = useStore((s) => s.penWidth)
   /** Punch-out islands of the chart (for the blueprint dimension labels). */
   const regions = useMemo<Region[]>(
@@ -529,6 +530,31 @@ export function EditorCanvas(): React.JSX.Element {
       ctx.setLineDash([])
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0)
+
+    // #N fixture labels — same numbers as the patch chips below (screen-space).
+    // Dense autoFill scenes only label the selection to avoid wallpapering the canvas.
+    if (showIds && chart.fixtures.length) {
+      const dense = chart.fixtures.length > 400
+      ctx.font = "9px 'JetBrains Mono', monospace"
+      ctx.textBaseline = 'middle'
+      ctx.textAlign = 'center'
+      chart.fixtures.forEach((f, i) => {
+        const isSel = selectedIds.includes(f.shapeId)
+        if (dense && !isSel) return
+        const sh = chart.shapes.find((x) => x.id === f.shapeId)
+        if (!sh || !sh.points.length) return
+        const p0 = sh.points[0]
+        const sx = v.tx + p0.x * v.scale
+        const sy = v.ty + p0.y * v.scale - 11
+        if (sx < -30 || sy < -20 || sx > cw + 30 || sy > ch + 20) return
+        const label = `#${i + 1}`
+        const tw = ctx.measureText(label).width
+        ctx.fillStyle = isSel ? 'rgba(123,197,232,0.95)' : 'rgba(15,14,13,0.82)'
+        ctx.fillRect(sx - tw / 2 - 3, sy - 7, tw + 6, 14)
+        ctx.fillStyle = isSel ? '#0a0a0a' : '#9fb6c0'
+        ctx.fillText(label, sx, sy)
+      })
+    }
 
     // blueprint dimension lines on the chart's punch-out islands (screen-space text,
     // editor-only — never part of the Syphon output)

@@ -39,6 +39,8 @@ interface AppState {
   penWidth: number
   /** Blueprint-style W/H dimension labels on the chart's punch-out islands. */
   showDims: boolean
+  /** #N fixture-number labels on the canvas (matching the patch chips below). */
+  showIds: boolean
   mask: MaskData | null
   /** True when the mask was computed but had ZERO drawable cells (wrong-polarity
    *  image): the restriction is auto-lifted and the UI shows why. */
@@ -105,6 +107,7 @@ interface AppState {
   setMaskEmpty: (on: boolean) => void
   setShowDims: (on: boolean) => void
   setPenWidth: (w: number) => void
+  setShowIds: (on: boolean) => void
   /** Erases the given 1px cells ("x,y" keys) out of painted strokes (splits as needed). */
   eraseCells: (keys: string[]) => void
   /** Auto-fill the masked drawable area with a grid of addressed cells; returns the count. */
@@ -191,6 +194,7 @@ export const useStore = create<AppState>()((set, get) => ({
   snapToPixel: true,
   penWidth: 1,
   showDims: true,
+  showIds: true,
   mask: null,
   maskEmpty: false,
   clipboard: null,
@@ -488,6 +492,7 @@ export const useStore = create<AppState>()((set, get) => ({
   setMaskEmpty: (maskEmpty) => set({ maskEmpty }),
   setShowDims: (showDims) => set({ showDims }),
   setPenWidth: (w) => set({ penWidth: Math.max(1, Math.min(500, Math.round(w))) }),
+  setShowIds: (showIds) => set({ showIds }),
   eraseCells: (keys) => {
     get().beginHistory('erase')
     set((s) => {
