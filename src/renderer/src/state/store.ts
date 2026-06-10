@@ -72,8 +72,11 @@ interface AppState {
    *  stamps a copy centred there (fixtures cloned with the same address). */
   clipboard: { shapes: Shape[]; fixtures: Fixture[] } | null
   pasteArmed: boolean
+  /** A spot marked by clicking empty canvas in Select mode — ⌘V pastes centred here. */
+  pasteMark: Point | null
   copySelection: () => void
   setPasteArmed: (on: boolean) => void
+  setPasteMark: (p: Point | null) => void
   pasteAt: (center: Point) => void
   updateShape: (id: string, patch: Partial<Shape>) => void
   addShape: (init: { type: Shape['type']; points: Shape['points'] } & Partial<Shape>) => string
@@ -184,6 +187,7 @@ export const useStore = create<AppState>()((set, get) => ({
   maskEmpty: false,
   clipboard: null,
   pasteArmed: false,
+  pasteMark: null,
   started: initialStarted(),
   history: [],
   future: [],
@@ -295,6 +299,7 @@ export const useStore = create<AppState>()((set, get) => ({
     set({ clipboard: { shapes, fixtures } })
   },
   setPasteArmed: (pasteArmed) => set({ pasteArmed }),
+  setPasteMark: (pasteMark) => set({ pasteMark }),
   pasteAt: (center) => {
     const cb = get().clipboard
     if (!cb || cb.shapes.length === 0) return

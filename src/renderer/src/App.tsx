@@ -93,9 +93,13 @@ function useMenuUndo(): void {
         a?.nativePaste?.()
       } else {
         const st = useStore.getState()
-        if (st.clipboard) {
+        if (!st.clipboard) return
+        if (st.pasteMark) {
+          st.pasteAt(st.pasteMark) // paste exactly at the marked spot
+          st.setPasteMark(null)
+        } else {
           st.setTool('select')
-          st.setPasteArmed(true)
+          st.setPasteArmed(true) // no mark: ghost-follow stamp mode
         }
       }
     })

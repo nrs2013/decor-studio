@@ -174,6 +174,9 @@ export function EditorCanvas(): React.JSX.Element {
   const select = useStore((s) => s.select)
   const pasteArmed = useStore((s) => s.pasteArmed)
   const clipboard = useStore((s) => s.clipboard)
+  const pasteMark = useStore((s) => s.pasteMark)
+  /** True while ⌘+drag in Select mode paints dots (Paint without leaving the arrow). */
+  const paintFromSelect = useRef(false)
   const addShape = useStore((s) => s.addShape)
   const snapToPixel = useStore((s) => s.snapToPixel)
   const setSnap = useStore((s) => s.setSnap)
@@ -475,6 +478,19 @@ export function EditorCanvas(): React.JSX.Element {
       }
       ctx.restore()
     }
+    // paste-mark crosshair (click an empty spot, then ⌘V pastes centred here)
+    if (pasteMark && tool === 'select' && !pasteArmed) {
+      const r2 = 7 / v.scale
+      ctx.strokeStyle = C.green
+      ctx.lineWidth = 1.2 / v.scale
+      ctx.beginPath()
+      ctx.moveTo(pasteMark.x - r2, pasteMark.y)
+      ctx.lineTo(pasteMark.x + r2, pasteMark.y)
+      ctx.moveTo(pasteMark.x, pasteMark.y - r2)
+      ctx.lineTo(pasteMark.x, pasteMark.y + r2)
+      ctx.stroke()
+      ctx.strokeRect(pasteMark.x - 0.5, pasteMark.y - 0.5, 1, 1)
+    }
     // rubber-band rectangle
     const mq = marquee.current
     if (mq) {
@@ -570,6 +586,7 @@ export function EditorCanvas(): React.JSX.Element {
         hideMeasure()
         setCtxMenu(null)
         const stp = useStore.getState()
+        stp.setPasteMark(null)
         if (stp.pasteArmed) {
           stp.setPasteArmed(false) // leave stamp mode first
         } else if (draftRef.current) {
@@ -617,8 +634,13 @@ export function EditorCanvas(): React.JSX.Element {
       }
       if ((e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
         if (st.clipboard) {
-          st.setTool('select')
-          st.setPasteArmed(true)
+          if (st.pasteMark) {
+            st.pasteAt(st.pasteMark) // paste exactly at the marked spot
+            st.setPasteMark(null)
+          } else {
+            st.setTool('select')
+            st.setPasteArmed(true)
+          }
           e.preventDefault()
         }
         return
@@ -850,6 +872,22 @@ export function EditorCanvas(): React.JSX.Element {
         useStore.getState().pasteAt(raw) // stamp! stays armed for the next click
         return
       }
+      // ⌘+drag in the arrow = paint dots right here (no tool switch needed)
+      if (e.metaKey) {
+        const cell = toCell(e.clientX, e.clientY)
+        const center = { x: cell.x + 0.5, y: cell.y + 0.5 }
+        if (mask && !isDrawable(center)) {
+          showBlocked()
+          return
+        }
+        useStore.getState().setPasteMark(null)
+        paintFromSelect.current = true
+        drawing.current = true
+        lastCell.current = cell
+        setDraft({ type: 'freehand', points: [center] })
+        canvasRef.current?.setPointerCapture(e.pointerId)
+        return
+      }
       // grab a handle of the already-selected shape first (resize/reshape/pull)
       const sel = chart.shapes.find((s) => s.id === selectedId)
       if (sel) {
@@ -888,6 +926,7 @@ export function EditorCanvas(): React.JSX.Element {
       }
       const hit = hitTest(raw)
       if (hit) {
+        useStore.getState().setPasteMark(null)
         if (e.shiftKey) {
           useStore.getState().toggleSelect(hit) // Shift+click = add / remove
           return
@@ -1224,7 +1263,7 @@ export function EditorCanvas(): React.JSX.Element {
       useStore.getState().eraseCells(keys)
       return
     }
-    if (drawing.current && tool === 'pixelpen' && draftRef.current) {
+    if (drawing.current && (tool === 'pixelpen' || paintFromSelect.current) && draftRef.current) {
       const cell = toCell(e.clientX, e.clientY)
       if (e.shiftKey) {
         // Shift: one straight run (H / V / 45°) from where the stroke started
@@ -1326,13 +1365,14 @@ export function EditorCanvas(): React.JSX.Element {
     if (d0.type === 'freehand') {
       // a single painted dot is a valid shape (duplicate the point so the stroke renders)
       const pp = pts.length === 1 ? [pts[0], pts[0]] : pts
+      const isPaint = tool === 'pixelpen' || paintFromSelect.current
       if (pp.length >= 2) {
         const id = addShape({
           type: 'freehand',
           points: pp,
-          ...(tool === 'pixelpen' ? { strokeWidth: 1 } : {})
+          ...(isPaint ? { strokeWidth: 1 } : {})
         })
-        if (tool === 'pixelpen') {
+        if (isPaint) {
           // なぞり×自動清書: fit the raw trail on release. Recorded as its own history
           // step, so Z = back to the raw trail, Z again = stroke gone.
           const fit = cleanPaintStroke(pp)
@@ -1370,6 +1410,7 @@ export function EditorCanvas(): React.JSX.Element {
       const x1 = Math.max(m.x0, m.x1)
       const y0 = Math.min(m.y0, m.y1)
       const y1 = Math.max(m.y0, m.y1)
+      const st = useStore.getState()
       if (x1 - x0 > 2 || y1 - y0 > 2) {
         const inIds = chart.shapes
           .filter((s) => {
@@ -1377,8 +1418,11 @@ export function EditorCanvas(): React.JSX.Element {
             return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
           })
           .map((s) => s.id)
-        const st = useStore.getState()
         st.selectMany(m.add ? Array.from(new Set([...st.selectedIds, ...inIds])) : inIds)
+        st.setPasteMark(null)
+      } else if (m.x0 >= 0 && m.y0 >= 0 && m.x0 < w && m.y0 < h) {
+        // a plain click on empty canvas marks the spot — ⌘V pastes centred here
+        st.setPasteMark({ x: Math.floor(m.x0) + 0.5, y: Math.floor(m.y0) + 0.5 })
       }
       drawRef.current()
       canvasRef.current?.releasePointerCapture(e.pointerId)
@@ -1399,6 +1443,7 @@ export function EditorCanvas(): React.JSX.Element {
     if (!drawing.current) return
     drawing.current = false
     commit()
+    paintFromSelect.current = false
   }
 
   const onDoubleClick = (): void => {
@@ -1468,6 +1513,9 @@ export function EditorCanvas(): React.JSX.Element {
       {spaceUi && <div style={hintStyle}>Space + drag to pan</div>}
       {pasteArmed && (
         <div style={hintStyle}>クリックでペースト（連続OK）· Esc で終了 · 番地はコピー元と同じ</div>
+      )}
+      {!pasteArmed && pasteMark && clipboard && (
+        <div style={hintStyle}>⌘V でマークした場所にペースト · Esc でマーク解除</div>
       )}
       {blocked && (
         <div style={{ ...hintStyle, border: '0.5px solid #8a6a31', color: C.amber }}>

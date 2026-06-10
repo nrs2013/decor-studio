@@ -72,7 +72,7 @@ const TOOL_GROUPS: { label: string | null; tools: ToolDef[] }[] = [
       {
         id: 'select',
         label: 'Select',
-        hint: '(V) 選択 / 囲んで複数選択 / Shift+クリック=追加 / 右クリック=結合・削除メニュー'
+        hint: '(V) 選択 / 囲んで複数選択 / 空クリック=ペースト位置マーク / ⌘ドラッグ=ドット描き / 右クリック=メニュー'
       }
     ]
   },
