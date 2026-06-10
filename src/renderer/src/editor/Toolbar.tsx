@@ -58,18 +58,42 @@ function ToolIcon({ id }: { id: Tool }): React.JSX.Element {
   )
 }
 
-const TOOLS: { id: Tool; label: string; hint: string }[] = [
-  { id: 'select', label: 'Select', hint: '(V) 選択 / 移動 / 端や四隅をドラッグで変形' },
-  { id: 'line', label: 'Line', hint: '(L) 直線' },
-  { id: 'polyline', label: 'Poly Line', hint: '折れ線（クリックで角・ダブルクリックで確定）' },
-  { id: 'freehand', label: 'Pen', hint: 'なめらかな手描き' },
-  { id: 'pixelpen', label: 'Paint', hint: '(P) 1pxドット塗り。Shift=直線（水平/垂直/45°）・⌘ドラッグ=その場で移動' },
-  { id: 'eraser', label: 'Eraser', hint: '(E) ドット消しゴム — はみ出した所をなぞって消す' },
-  { id: 'ellipse', label: 'Bulb', hint: '丸・電球' },
-  { id: 'triangle', label: 'Triangle', hint: '三角' },
-  { id: 'rect', label: 'Rect', hint: '四角' },
-  { id: 'star', label: 'Star', hint: '星' },
-  { id: 'polygon', label: 'Polygon', hint: '六角形' }
+interface ToolDef {
+  id: Tool
+  label: string
+  hint: string
+}
+
+/** Two islands: PIXEL = precise 1px dot work, DRAW = freehand shapes. */
+const TOOL_GROUPS: { label: string | null; tools: ToolDef[] }[] = [
+  {
+    label: null,
+    tools: [{ id: 'select', label: 'Select', hint: '(V) 選択 / 移動 / 角や端をドラッグで変形' }]
+  },
+  {
+    label: 'PIXEL',
+    tools: [
+      {
+        id: 'pixelpen',
+        label: 'Paint',
+        hint: '(P) なぞって塗る→離すと自動清書。クリック=1ドット・Shift+クリック=前の端から直線の棒・⌘ドラッグ=移動'
+      },
+      { id: 'eraser', label: 'Eraser', hint: '(E) ドット消しゴム — はみ出した所をなぞって消す' }
+    ]
+  },
+  {
+    label: 'DRAW',
+    tools: [
+      { id: 'freehand', label: 'Pen', hint: 'なめらかな手描き' },
+      { id: 'line', label: 'Line', hint: '(L) 直線（Shift=水平/垂直/45°）' },
+      { id: 'polyline', label: 'Poly Line', hint: '折れ線（クリックで角・ダブルクリックで確定）' },
+      { id: 'ellipse', label: 'Bulb', hint: '丸・電球（Shift=正円）' },
+      { id: 'triangle', label: 'Triangle', hint: '三角' },
+      { id: 'rect', label: 'Rect', hint: '四角（Shift=正方形）' },
+      { id: 'star', label: 'Star', hint: '星' },
+      { id: 'polygon', label: 'Polygon', hint: '六角形' }
+    ]
+  }
 ]
 
 interface PreviewApi {
@@ -125,24 +149,49 @@ export function Toolbar({
           pointerEvents: editing ? 'auto' : 'none'
         }}
       >
-        {TOOLS.map((t) => (
-          <button
-            key={t.id}
-            style={{
-              ...buttonStyle({ active: tool === t.id }),
-              width: 36,
-              height: 32,
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            onClick={() => setTool(t.id)}
-            title={`${t.label} — ${t.hint}`}
-            aria-label={t.label}
+        {TOOL_GROUPS.map((g, gi) => (
+          <div
+            key={g.label ?? gi}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <ToolIcon id={t.id} />
-          </button>
+            {gi > 0 && (
+              <div style={{ width: '0.5px', height: 26, background: C.border, margin: '0 4px' }} />
+            )}
+            {g.label && (
+              <span
+                style={{
+                  fontSize: 9,
+                  letterSpacing: '0.14em',
+                  color: C.hint,
+                  fontFamily: F.ui,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  userSelect: 'none'
+                }}
+              >
+                {g.label}
+              </span>
+            )}
+            {g.tools.map((t) => (
+              <button
+                key={t.id}
+                style={{
+                  ...buttonStyle({ active: tool === t.id }),
+                  width: 36,
+                  height: 32,
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onClick={() => setTool(t.id)}
+                title={`${t.label} — ${t.hint}`}
+                aria-label={t.label}
+              >
+                <ToolIcon id={t.id} />
+              </button>
+            ))}
+          </div>
         ))}
       </div>
 

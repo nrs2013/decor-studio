@@ -23,6 +23,10 @@ export interface Shape {
   strokeWidth: number
   /** Repeat this shape into a parametric array (e.g. a bar every 10px). */
   repeat?: { count: number; dx: number; dy: number }
+  /** Painted chains (auto-cleaned strokes / Shift+click bars): indices into `points`
+   *  marking the straight-segment corners (first and last included). Corners are
+   *  grabbable; dragging one regenerates the adjacent dot runs. */
+  verts?: number[]
   fixtureId?: string
 }
 

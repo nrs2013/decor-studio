@@ -4,6 +4,9 @@ import type { Point, Shape } from '../model/types'
 import { C, F } from '../ui/tokens'
 import { cornerBounds, traceShape, shapeArrayBounds, cellsBetween, type Bounds } from './geometry'
 import { buildCandidates, salientOf, snap1D, snapMoveDelta, softAxis, type SnapCand } from './snapping'
+import { cleanPaintStroke, regenChain } from './stroke-fit'
+
+const cellOfPt = (p: Point): Point => ({ x: Math.floor(p.x), y: Math.floor(p.y) })
 
 const MIN_SIZE = 3
 const clamp = (n: number, lo: number, hi: number): number => (n < lo ? lo : n > hi ? hi : n)
@@ -53,11 +56,12 @@ type Interaction =
   | { kind: 'corner'; id: string; anchor: Point; aspect: number; cand?: SnapCand }
   | { kind: 'edge'; id: string; b: Bounds; dir: 'n' | 's' | 'e' | 'w'; cand?: SnapCand }
   | { kind: 'end'; id: string; anchor: Point; cand?: SnapCand } // anchor = fixed end's cell
+  | { kind: 'chainvert'; id: string; idx: number; cand?: SnapCand } // idx into shape.verts
 
 interface Handle {
   x: number
   y: number
-  kind: 'vertex' | 'corner' | 'end' | 'edge'
+  kind: 'vertex' | 'corner' | 'end' | 'edge' | 'chainvert'
   idx: number
   anchor?: Point
   dir?: 'n' | 's' | 'e' | 'w'
@@ -82,15 +86,23 @@ function shapeHandles(sh: Shape): Handle[] {
     return sh.points.map((p, i) => ({ x: p.x, y: p.y, kind: 'vertex' as const, idx: i }))
   }
   if (sh.type === 'freehand' && isPaintedRun(sh)) {
+    // cleaned chains: every corner is grabbable (drag regenerates the adjacent runs)
+    if (sh.verts && sh.verts.length >= 2) {
+      return sh.verts.map((pi, i) => ({
+        x: sh.points[pi].x,
+        y: sh.points[pi].y,
+        kind: 'chainvert' as const,
+        idx: i
+      }))
+    }
     const a = sh.points[0]
     const b = sh.points[sh.points.length - 1]
-    const cellOf = (p: Point): Point => ({ x: Math.floor(p.x), y: Math.floor(p.y) })
     if (sh.points.length === 1 || (a.x === b.x && a.y === b.y)) {
-      return [{ x: b.x, y: b.y, kind: 'end' as const, idx: 1, anchor: cellOf(a) }]
+      return [{ x: b.x, y: b.y, kind: 'end' as const, idx: 1, anchor: cellOfPt(a) }]
     }
     return [
-      { x: a.x, y: a.y, kind: 'end' as const, idx: 0, anchor: cellOf(b) },
-      { x: b.x, y: b.y, kind: 'end' as const, idx: 1, anchor: cellOf(a) }
+      { x: a.x, y: a.y, kind: 'end' as const, idx: 0, anchor: cellOfPt(b) },
+      { x: b.x, y: b.y, kind: 'end' as const, idx: 1, anchor: cellOfPt(a) }
     ]
   }
   if (BOXY.has(sh.type) && sh.points.length >= 2) {
@@ -197,6 +209,8 @@ export function EditorCanvas(): React.JSX.Element {
   const interaction = useRef<Interaction | null>(null)
   const lastCell = useRef<Point | null>(null)
   const guidesRef = useRef<{ x: number | null; y: number | null }>({ x: null, y: null })
+  /** End of the last painted run — the anchor for Shift+click bar chaining. */
+  const lastPaintEnd = useRef<{ id: string; cell: Point } | null>(null)
   const posRef = useRef<HTMLSpanElement>(null)
   const [cursorOv, setCursorOv] = useState<string | null>(null)
   // "why didn't that draw?" toast — silent blocking is forbidden
@@ -746,9 +760,12 @@ export function EditorCanvas(): React.JSX.Element {
       if (sel) {
         const hd = findHandle(sel, raw)
         if (hd) {
-          useStore.getState().beginHistory()
+          // chainvert drags record history via updateShape (coalesced); others here
+          if (hd.kind !== 'chainvert') useStore.getState().beginHistory()
           const cand = buildCandidates(chart.shapes, sel.id)
-          if (hd.kind === 'vertex') {
+          if (hd.kind === 'chainvert') {
+            interaction.current = { kind: 'chainvert', id: sel.id, idx: hd.idx, cand }
+          } else if (hd.kind === 'vertex') {
             interaction.current = { kind: 'vertex', id: sel.id, idx: hd.idx, cand }
           } else if (hd.kind === 'end') {
             interaction.current = { kind: 'end', id: sel.id, anchor: hd.anchor!, cand }
@@ -797,12 +814,56 @@ export function EditorCanvas(): React.JSX.Element {
       return
     }
     if (tool === 'pixelpen') {
-      // paint: press fills the cell under the cursor, drag keeps filling
       const cell = toCell(e.clientX, e.clientY)
       const center = { x: cell.x + 0.5, y: cell.y + 0.5 }
       if (mask && !isDrawable(center)) {
         showBlocked() // never block silently
         return
+      }
+      // Shift+click: one straight dot bar from the end of the previous painted run
+      // (Aseprite-style) — keep clicking to grow the chain, 1 fixture per chain.
+      if (e.shiftKey && lastPaintEnd.current) {
+        const st = useStore.getState()
+        const anchor = lastPaintEnd.current
+        const sh = st.chart.shapes.find((s) => s.id === anchor.id)
+        if (sh && sh.type === 'freehand' && (sh.strokeWidth || 1) <= 1) {
+          if (sh.verts && sh.verts.length >= 2) {
+            // chain: rebuild through existing corners + the new one
+            const vc = sh.verts.map((pi) => cellOfPt(sh.points[pi]))
+            vc.push(cell)
+            const { points, verts } = regenChain(vc)
+            if (!mask || points.every((c) => isDrawable(c))) {
+              st.updateShape(anchor.id, { points, verts })
+              st.select(anchor.id)
+              lastPaintEnd.current = { id: anchor.id, cell }
+              return
+            }
+          } else {
+            // raw stroke (or single dot): append a straight run, start tracking corners
+            const single =
+              sh.points.length === 2 &&
+              sh.points[0].x === sh.points[1].x &&
+              sh.points[0].y === sh.points[1].y
+            const base = single ? [sh.points[0]] : sh.points
+            const adds: Point[] = []
+            for (const c of cellsBetween(anchor.cell, cell)) {
+              const cc = { x: c.x + 0.5, y: c.y + 0.5 }
+              if (mask && !isDrawable(cc)) break
+              adds.push(cc)
+            }
+            if (adds.length) {
+              const points = [...base, ...adds]
+              const verts = single
+                ? [0, points.length - 1]
+                : [0, base.length - 1, points.length - 1]
+              st.updateShape(anchor.id, { points, verts })
+              st.select(anchor.id)
+              lastPaintEnd.current = { id: anchor.id, cell: cellOfPt(points[points.length - 1]) }
+              return
+            }
+          }
+        }
+        lastPaintEnd.current = null // anchor went stale: fall through to a fresh stroke
       }
       drawing.current = true
       lastCell.current = cell
@@ -892,6 +953,38 @@ export function EditorCanvas(): React.JSX.Element {
         guidesRef.current = { x: gx, y: gy }
         st.setShapePoints(it.id, it.orig.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })))
         showMeasure(e, `ΔX ${Math.round(dx)} · ΔY ${Math.round(dy)}`)
+        return
+      }
+      if (it.kind === 'chainvert') {
+        // drag one corner of a cleaned chain: only its two adjacent runs regenerate
+        const sh2 = st.chart.shapes.find((s) => s.id === it.id)
+        if (!sh2 || !sh2.verts || sh2.verts.length < 2) return
+        let cell = toCell(e.clientX, e.clientY)
+        const vcells = sh2.verts.map((pi) => cellOfPt(sh2.points[pi]))
+        const nb = vcells[it.idx === 0 ? 1 : it.idx - 1] // neighbour corner = axis anchor
+        if (e.shiftKey) {
+          const sn = axisSnap(nb, cell)
+          cell = { x: clamp(sn.x, 0, w - 1), y: clamp(sn.y, 0, h - 1) }
+        } else if (snapToPixel && !(e.metaKey || e.altKey)) {
+          let gx: number | null = null
+          let gy: number | null = null
+          if (it.cand) {
+            const sx2 = snap1D(cell.x + 0.5, it.cand.xs, tolA, 0, 0, false)
+            const sy2 = snap1D(cell.y + 0.5, it.cand.ys, tolA, 0, 0, false)
+            gx = sx2.guide
+            gy = sy2.guide
+            cell = { x: Math.floor(sx2.v), y: Math.floor(sy2.v) }
+          }
+          cell = softAxis(nb, cell, Math.max(1, Math.round(tolA)))
+          cell = { x: clamp(cell.x, 0, w - 1), y: clamp(cell.y, 0, h - 1) }
+          guidesRef.current = { x: gx, y: gy }
+        }
+        vcells[it.idx] = cell
+        const { points, verts } = regenChain(vcells)
+        if (!mask || points.every((c) => isDrawable(c))) {
+          st.updateShape(it.id, { points, verts })
+          showMeasure(e, `${points.length} dots`)
+        }
         return
       }
       if (it.kind === 'end') {
@@ -1140,12 +1233,27 @@ export function EditorCanvas(): React.JSX.Element {
     if (d0.type === 'freehand') {
       // a single painted dot is a valid shape (duplicate the point so the stroke renders)
       const pp = pts.length === 1 ? [pts[0], pts[0]] : pts
-      if (pp.length >= 2)
-        addShape({
+      if (pp.length >= 2) {
+        const id = addShape({
           type: 'freehand',
           points: pp,
           ...(tool === 'pixelpen' ? { strokeWidth: 1 } : {})
         })
+        if (tool === 'pixelpen') {
+          // なぞり×自動清書: fit the raw trail on release. Recorded as its own history
+          // step, so Z = back to the raw trail, Z again = stroke gone.
+          const fit = cleanPaintStroke(pp)
+          if (
+            fit.kind !== 'raw' &&
+            (!mask || fit.points.every((c) => isDrawable(c)))
+          ) {
+            useStore.getState().updateShape(id, { points: fit.points, verts: fit.verts })
+            lastPaintEnd.current = { id, cell: cellOfPt(fit.points[fit.points.length - 1]) }
+          } else {
+            lastPaintEnd.current = { id, cell: cellOfPt(pp[pp.length - 1]) }
+          }
+        }
+      }
     } else if (d0.type === 'line') {
       if (dist(a, b) >= MIN_SIZE) addShape({ type: 'line', points: [a, b] })
     } else {

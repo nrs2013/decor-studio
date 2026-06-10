@@ -68,6 +68,12 @@
   - **寸法バッジ**：描く/端引っ張り/移動/変形の最中、カーソル横に **`X 41 · Y 21 · 61 dots`** 形式でリアルタイム表示（ref直書き・React state不使用）。Paint/端引っ張り＝Xスパン・Yスパン・ドット数、Line＝X・Y・L（斜め長）、箱系＝W×H、移動＝ΔX・ΔY。離すと消える。**Inspector上部にも選択中の寸法を常設**（`sizeText`）。
   - **⌘Z事件の真相**：Macアプリは**Electron既定メニューが⌘Zを横取り**して編集室に届いていなかった（ブラウザでは効くのに.appで効かない罠）。`main/index.ts buildMenu` で自前メニューを構築し Undo/Redo を `edit:undo/redo` IPC→renderer（`App.tsx useMenuUndo`・テキスト入力中はネイティブundo）。Cut/Copy/Paste はネイティブrole維持。
   - **Z＝取り消し／Shift+Z＝やり直し**（修飾キー無しの1発・メニュー経由問題と無関係に効く）。失敗→Zポン。
+- **PIXEL島/DRAW島＋なぞり×自動清書（6/10 のむさんと設計相談→体感コア実装済み）**：
+  - **設計思想（のむさん発案）**：道具バーを**「PIXEL＝精密1px」と「DRAW＝お絵かき図形」の2島**に分離（島ラベル付き）。PIXEL=Paint/Eraser、DRAW=Pen/Line/PolyLine/丸/三角/四角/星/六角形。
+  - **なぞり×自動清書**（`editor/stroke-fit.ts`・Procreate QuickShape/Aseprite/xLights PolyLine調査の合成）：Paintでなぞって離した瞬間、①ほぼ直線→完全な直線ドット列（**綺麗な階段比 1:1/2:1/3:1/4:1 に優しくスナップ**）②角のあるジグザグ→**角検出してチェーン化**（RDP, eps2.4・角8個まで）③ぐねぐね曲線→そのまま尊重。**Z 1回=清書前の生の線に戻る、もう1回=線ごと消える**（addShape+updateShapeの2段履歴）。マスク跨ぎは清書中止。
+  - **Shift+クリック棒打ち**（Aseprite流）：Paintでクリック=1ドット、**Shift+クリック=前の端から直線の棒を継ぎ足し**。連打でジグザグ電飾が**1本のチェーン=1 Fixture**に成長。
+  - **チェーンの角＝全部掴める**（`Shape.verts`=角のインデックス・`regenChain`）：角ドラッグで**両隣の区間だけ再生成**（他の角と端は不動）。履歴はupdateShapeの合体で1ドラッグ=1手。
+  - 残り（GO待ち）：複数選択＋⌘C/⌘Vスタンプ連打、Inspector数値仕上げ（長さ/角度）、DRAW島Penの二重ドット掃除、清書の効き具合調整。
 - **テスト**：`npm test` 19本（純ロジック）。型 `npm run typecheck`。
 
 ## 3. 確定済みの方針（変えない）
