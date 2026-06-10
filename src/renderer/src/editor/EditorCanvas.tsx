@@ -1551,6 +1551,21 @@ export function EditorCanvas(): React.JSX.Element {
     }
   }
 
+  // grid unit indicator: what one visible cell currently means (mirrors drawGrid)
+  const unit = view.scale >= 6 ? '1 cell = 1px' : view.scale >= 1.5 ? '1 cell = 10px' : 'grid off'
+  const [unitFlash, setUnitFlash] = useState<{ text: string; key: number } | null>(null)
+  const prevUnit = useRef<string | null>(null)
+  useEffect(() => {
+    const prev = prevUnit.current
+    prevUnit.current = unit
+    if (prev !== null && prev !== unit) {
+      setUnitFlash({ text: unit, key: Date.now() })
+      const t = setTimeout(() => setUnitFlash(null), 1150)
+      return () => clearTimeout(t)
+    }
+    return undefined
+  }, [unit])
+
   const cursor = spaceUi
     ? 'grab'
     : pasteArmed
@@ -1591,6 +1606,21 @@ export function EditorCanvas(): React.JSX.Element {
           ref={posRef}
           style={{ fontFamily: F.mono, fontSize: 11, color: C.hint, minWidth: 76 }}
         />
+        <span
+          style={{
+            fontFamily: F.mono,
+            fontSize: 11,
+            color: C.accent,
+            border: `0.5px solid ${C.accent}`,
+            borderRadius: 4,
+            padding: '3px 9px',
+            background: 'rgba(123,197,232,0.08)',
+            whiteSpace: 'nowrap'
+          }}
+          title="いまのグリッド1マスが何ピクセルか"
+        >
+          {unit}
+        </span>
         <button
           onClick={() => setSnap(!snapToPixel)}
           style={{
@@ -1616,6 +1646,12 @@ export function EditorCanvas(): React.JSX.Element {
       {blocked && (
         <div style={{ ...hintStyle, border: '0.5px solid #8a6a31', color: C.amber }}>
           ここは描けないエリアです（チャートの絵がある所）。Invert で反転 / Mask OFF で解除
+        </div>
+      )}
+      {unitFlash && (
+        <div key={unitFlash.key} style={unitFlashStyle}>
+          <style>{'@keyframes decorUnitFade{0%{opacity:1}55%{opacity:1}100%{opacity:0}}'}</style>
+          {unitFlash.text}
         </div>
       )}
       <div ref={measureRef} style={measureBadge} />
@@ -1684,6 +1720,21 @@ const zoomBtn: React.CSSProperties = {
   fontFamily: "'Bebas Neue', sans-serif",
   letterSpacing: '0.08em',
   cursor: 'pointer'
+}
+const unitFlashStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  pointerEvents: 'none',
+  fontFamily: F.mono,
+  fontSize: 46,
+  letterSpacing: '0.12em',
+  color: 'rgba(232,229,220,0.13)',
+  animation: 'decorUnitFade 1.15s ease-out forwards',
+  userSelect: 'none',
+  zIndex: 4
 }
 const menuBtn: React.CSSProperties = {
   background: 'transparent',
