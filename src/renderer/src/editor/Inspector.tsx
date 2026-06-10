@@ -1,14 +1,18 @@
 import { useStore } from '../state/store'
-import type { ChannelMode, DisplayMode, Shape } from '../model/types'
+import type { BulbStyle, ChannelMode, DisplayMode, Shape } from '../model/types'
 import { C, F, buttonStyle, inputStyle, fieldLabel } from '../ui/tokens'
 import { channelCount } from '../dmx/channel-math'
 import { addressAt, formatDmx } from '../dmx/address'
 import { NumberField } from '../ui/NumberField'
-import { shapeBounds } from './geometry'
+import { shapeBounds, bulbDiameter } from './geometry'
+import { BULB_DEFAULT_STYLE } from '../render/bulb'
 
 /** Human-readable size of a shape: spans, dot counts, lengths — diagonals included. */
 function sizeText(shape: Shape): string {
   const b = shapeBounds(shape)
+  if (shape.type === 'bulb') {
+    return `Φ ${bulbDiameter(shape)} px`
+  }
   if (shape.type === 'freehand') {
     const single =
       shape.points.length === 2 &&
@@ -75,8 +79,45 @@ export function Inspector(): React.JSX.Element {
         {sizeText(shape)}
       </div>
 
+      {/* bulb: glass size + texture (colour & gauge come from the console) */}
+      {shape.type === 'bulb' && (
+        <>
+          <Field label="径（ドット）">
+            <NumberField
+              value={bulbDiameter(shape)}
+              min={1}
+              max={200}
+              step={0.5}
+              onChange={(v) => updateShape(shape.id, { diameter: v })}
+            />
+          </Field>
+          <Field label="質感">
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(
+                [
+                  { id: 'clear', label: 'クリア' },
+                  { id: 'frost', label: 'フロスト' }
+                ] as { id: BulbStyle; label: string }[]
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  style={{
+                    ...buttonStyle({ active: (shape.bulbStyle ?? BULB_DEFAULT_STYLE) === m.id }),
+                    flex: 1,
+                    padding: '6px 0'
+                  }}
+                  onClick={() => updateShape(shape.id, { bulbStyle: m.id })}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </Field>
+        </>
+      )}
+
       {/* display mode */}
-      {!open && (
+      {!open && shape.type !== 'bulb' && (
         <Field label="Display">
           <div style={{ display: 'flex', gap: 6 }}>
             {DISPLAY_MODES.map((m) => (
@@ -92,14 +133,16 @@ export function Inspector(): React.JSX.Element {
         </Field>
       )}
 
-      <Field label="Width">
-        <NumberField
-          value={shape.strokeWidth}
-          min={1}
-          max={500}
-          onChange={(v) => updateShape(shape.id, { strokeWidth: v })}
-        />
-      </Field>
+      {shape.type !== 'bulb' && (
+        <Field label="Width">
+          <NumberField
+            value={shape.strokeWidth}
+            min={1}
+            max={500}
+            onChange={(v) => updateShape(shape.id, { strokeWidth: v })}
+          />
+        </Field>
+      )}
 
       {/* repeat / array */}
       <div style={{ marginBottom: rowGap }}>
@@ -259,14 +302,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const asideStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
+  width: '100%',
+  flex: 1,
+  minHeight: 0,
   background: C.panel,
-  borderLeft: `0.5px solid ${C.border}`,
   padding: 16,
   display: 'flex',
   flexDirection: 'column',
-  overflowY: 'auto'
+  overflowY: 'auto',
+  boxSizing: 'border-box'
 }
 
 function rgbToHex([r, g, b]: [number, number, number]): string {

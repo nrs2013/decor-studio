@@ -7,8 +7,10 @@ export type ShapeType =
   | 'triangle'
   | 'star'
   | 'polygon'
+  | 'bulb'
 export type DisplayMode = 'stroke' | 'fill' | 'both'
 export type ChannelMode = 'rgb' | 'rgbdim' | 'dim' | 'rgbw'
+export type BulbStyle = 'clear' | 'frost'
 
 export interface Point {
   x: number
@@ -28,6 +30,10 @@ export interface Shape {
    *  grabbable; dragging one regenerates the adjacent dot runs. */
   verts?: number[]
   fixtureId?: string
+  /** Bulb only: glass diameter in canvas px (points[0] is the centre). */
+  diameter?: number
+  /** Bulb only: clear glass (filament visible) or frosted (milky globe). */
+  bulbStyle?: BulbStyle
 }
 
 export interface Fixture {

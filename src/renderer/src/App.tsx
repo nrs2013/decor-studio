@@ -3,6 +3,7 @@ import { Toolbar } from './editor/Toolbar'
 import { SubBar } from './editor/SubBar'
 import { EditorCanvas } from './editor/EditorCanvas'
 import { Inspector } from './editor/Inspector'
+import { PartsPalette } from './editor/PartsPalette'
 import { PatchTable } from './editor/PatchTable'
 import { LiveView } from './output/LiveView'
 import { StatusBar } from './ui/StatusBar'
@@ -144,7 +145,20 @@ function EditorApp(): React.JSX.Element {
           <SubBar />
           <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
             <EditorCanvas />
-            <Inspector />
+            <div
+              style={{
+                width: 280,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0,
+                background: C.panel,
+                borderLeft: `0.5px solid ${C.border}`
+              }}
+            >
+              <PartsPalette />
+              <Inspector />
+            </div>
           </div>
           <PatchTable />
         </>

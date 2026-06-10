@@ -1,4 +1,5 @@
 import type { Point, Shape } from '../model/types'
+import { BULB_DEFAULT_DIAMETER } from '../render/bulb'
 
 export interface Bounds {
   x: number
@@ -76,8 +77,16 @@ export function regularPolygonPoints(a: Point, b: Point, sides = 6): Point[] {
   return pts
 }
 
+/** Bulb glass diameter with the shared default applied. */
+export const bulbDiameter = (shape: Shape): number => shape.diameter ?? BULB_DEFAULT_DIAMETER
+
 /** Overall bounding box of a shape, accounting for its derived geometry. */
 export function shapeBounds(shape: Shape): Bounds {
+  if (shape.type === 'bulb' && shape.points.length >= 1) {
+    const c = shape.points[0]
+    const d = bulbDiameter(shape)
+    return { x: c.x - d / 2, y: c.y - d / 2, w: d, h: d }
+  }
   if (shape.points.length < 2) return boundsOfPoints(shape.points)
   switch (shape.type) {
     case 'rect':
@@ -103,6 +112,12 @@ function polyTrace(ctx: CanvasRenderingContext2D, pts: Point[]): void {
  *  Canvas-based editor renderer. */
 export function traceShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
   const p = shape.points
+  if (shape.type === 'bulb' && p.length >= 1) {
+    const d = bulbDiameter(shape)
+    ctx.beginPath()
+    ctx.arc(p[0].x, p[0].y, d / 2, 0, Math.PI * 2)
+    return
+  }
   if (p.length < 2) return
   ctx.beginPath()
   switch (shape.type) {
@@ -233,6 +248,31 @@ export function shapeIntersectsRect(
     return false
   }
   return true // closed box shapes fill their bbox closely enough
+}
+
+/** Where pasted clipboard content lands relative to the clicked spot: bulbs anchor by
+ *  their CENTRE (the clicked dot becomes the glass centre — のむさん指定), everything
+ *  else keeps the original top-left anchor. Whole-cell deltas keep .5 centres crisp. */
+export function pasteDelta(shapes: Shape[], at: Point): Point {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const sh of shapes) {
+    const b = shapeArrayBounds(sh)
+    minX = Math.min(minX, b.x)
+    minY = Math.min(minY, b.y)
+    maxX = Math.max(maxX, b.x + b.w)
+    maxY = Math.max(maxY, b.y + b.h)
+  }
+  const allBulbs = shapes.length > 0 && shapes.every((sh) => sh.type === 'bulb')
+  if (allBulbs) {
+    return {
+      x: Math.round(at.x - (minX + maxX) / 2),
+      y: Math.round(at.y - (minY + maxY) / 2)
+    }
+  }
+  return { x: Math.round(at.x - minX), y: Math.round(at.y - minY) }
 }
 
 /** Bounds of a shape including its repeat-array extent. */

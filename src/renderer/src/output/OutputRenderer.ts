@@ -6,8 +6,10 @@ import {
   trianglePoints,
   starPoints,
   regularPolygonPoints,
-  isCellRun
+  isCellRun,
+  bulbDiameter
 } from '../editor/geometry'
+import { drawBulbLit, BULB_DEFAULT_STYLE } from '../render/bulb'
 
 const ZEROS = new Uint8Array(512)
 
@@ -122,6 +124,15 @@ export class OutputRenderer {
     const ctx = this.ctx
     ctx.save()
     if (ox || oy) ctx.translate(ox, oy)
+    // ball bulbs: photoreal lit render (hue + gauge both come from the console RGB)
+    if (shape.type === 'bulb') {
+      const c = shape.points[0]
+      if (c) {
+        drawBulbLit(ctx, c.x, c.y, bulbDiameter(shape), rgb, shape.bulbStyle ?? BULB_DEFAULT_STYLE)
+      }
+      ctx.restore()
+      return
+    }
     const col = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`
     // painted dot runs render as exact filled cells — pixel-solid to the very last
     // dot (no anti-aliased round caps fading the ends)

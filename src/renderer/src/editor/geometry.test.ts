@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cellsBetween, shapeIntersectsRect } from './geometry'
+import { cellsBetween, shapeIntersectsRect, shapeBounds, pasteDelta } from './geometry'
 
 describe('cellsBetween (paint path)', () => {
   it('horizontal / vertical runs hit every cell', () => {
@@ -55,5 +55,51 @@ describe('shapeIntersectsRect (囲み選択の実体判定)', () => {
       display: 'stroke' as const, strokeWidth: 1
     }
     expect(shapeIntersectsRect(line, 0, 0, 10, 10)).toBe(true)
+  })
+})
+
+describe('bulb geometry', () => {
+  const bulb = (over = {}): import('../model/types').Shape => ({
+    id: 'b1',
+    type: 'bulb',
+    points: [{ x: 100.5, y: 50.5 }],
+    display: 'fill',
+    strokeWidth: 1,
+    ...over
+  })
+
+  it('shapeBounds: glass box centred on the point, default Φ5.5', () => {
+    const b = shapeBounds(bulb())
+    expect(b.w).toBeCloseTo(5.5)
+    expect(b.h).toBeCloseTo(5.5)
+    expect(b.x).toBeCloseTo(100.5 - 2.75)
+    expect(b.y).toBeCloseTo(50.5 - 2.75)
+  })
+
+  it('shapeBounds: honours a custom diameter', () => {
+    const b = shapeBounds(bulb({ diameter: 12 }))
+    expect(b.w).toBe(12)
+    expect(b.x).toBeCloseTo(100.5 - 6)
+  })
+
+  it('pasteDelta: bulbs land CENTRED on the clicked dot', () => {
+    const at = { x: 30.5, y: 40.5 }
+    const d = pasteDelta([bulb()], at)
+    expect(d).toEqual({ x: 30 - 100, y: 40 - 50 }) // centre -> centre, whole cells
+  })
+
+  it('pasteDelta: non-bulb clipboard keeps the top-left anchor', () => {
+    const line: import('../model/types').Shape = {
+      id: 'l1',
+      type: 'line',
+      points: [
+        { x: 10, y: 20 },
+        { x: 30, y: 25 }
+      ],
+      display: 'stroke',
+      strokeWidth: 1
+    }
+    const d = pasteDelta([line], { x: 100, y: 200 })
+    expect(d).toEqual({ x: 90, y: 180 })
   })
 })

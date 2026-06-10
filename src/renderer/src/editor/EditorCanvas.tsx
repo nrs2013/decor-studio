@@ -17,6 +17,8 @@ import {
   cellsBetween,
   isCellRun,
   segDist,
+  bulbDiameter,
+  pasteDelta,
   type Bounds
 } from './geometry'
 import { buildCandidates, salientOf, snap1D, snapMoveDelta, softAxis, type SnapCand } from './snapping'
@@ -178,6 +180,27 @@ function drawShapeInto(
         py = cy
         ctx.fillRect(cx - off, cy - off, n, n)
       }
+    }
+    return
+  }
+  // ball bulbs: schematic in the editor — glass-edge ring + the exact centre cell.
+  // (The photoreal lit render lives in Live / Syphon output.)
+  if (shape.type === 'bulb') {
+    const c0 = shape.points[0]
+    if (!c0) return
+    const r = bulbDiameter(shape) / 2
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = Math.max(1, boost) * 0.6
+    for (let i = 0; i < reps; i++) {
+      const x = c0.x + dx * i
+      const y = c0.y + dy * i
+      ctx.fillStyle = fill
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = stroke
+      ctx.fillRect(x - 0.5, y - 0.5, 1, 1)
     }
     return
   }
@@ -496,17 +519,12 @@ export function EditorCanvas(): React.JSX.Element {
       ctx.stroke()
       ctx.setLineDash([])
     }
-    // paste-mode ghost: the clipboard follows the cursor, top-left anchored
+    // paste-mode ghost: the clipboard follows the cursor (bulbs ride centred on it,
+    // everything else keeps its top-left anchor — same rule as pasteAt)
     if (pasteArmed && clipboard && clipboard.shapes.length && ghostPos.current) {
-      let minX = Infinity
-      let minY = Infinity
-      for (const sh of clipboard.shapes) {
-        const b = shapeArrayBounds(sh)
-        minX = Math.min(minX, b.x)
-        minY = Math.min(minY, b.y)
-      }
-      const gdx = Math.round(ghostPos.current.x - minX)
-      const gdy = Math.round(ghostPos.current.y - minY)
+      const gd = pasteDelta(clipboard.shapes, ghostPos.current)
+      const gdx = gd.x
+      const gdy = gd.y
       ctx.save()
       ctx.globalAlpha = 0.45
       ctx.translate(gdx, gdy)
@@ -1615,6 +1633,30 @@ export function EditorCanvas(): React.JSX.Element {
     }
   }
 
+  // parts palette drop target: dropping a part stamps it centred on the cell under
+  // the cursor (bulb centre = the dropped dot), then hands over to Select for moving
+  const onDragOver = (e: React.DragEvent<HTMLCanvasElement>): void => {
+    if (e.dataTransfer.types.includes('application/x-decor-part')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    }
+  }
+  const onDrop = (e: React.DragEvent<HTMLCanvasElement>): void => {
+    const part = e.dataTransfer.getData('application/x-decor-part')
+    if (!part) return
+    e.preventDefault()
+    if (part === 'bulb') {
+      const cell = toCell(e.clientX, e.clientY)
+      const center = { x: cell.x + 0.5, y: cell.y + 0.5 }
+      if (mask && !isDrawable(center)) {
+        showBlocked()
+        return
+      }
+      useStore.getState().setTool('select')
+      addShape({ type: 'bulb', points: [center], display: 'fill', strokeWidth: 1 })
+    }
+  }
+
   // grid unit indicator: what one visible cell currently means (mirrors drawGrid)
   const unit = view.scale >= 6 ? '1 cell = 1px' : view.scale >= 1.5 ? '1 cell = 10px' : 'grid off'
   const [unitFlash, setUnitFlash] = useState<{ text: string; key: number } | null>(null)
@@ -1649,6 +1691,8 @@ export function EditorCanvas(): React.JSX.Element {
           hideMeasure()
         }}
         onDoubleClick={onDoubleClick}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         onContextMenu={(e) => e.preventDefault()}
         style={{ display: 'block', width: '100%', height: '100%', cursor, touchAction: 'none' }}
       />

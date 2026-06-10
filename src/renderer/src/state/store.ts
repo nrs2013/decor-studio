@@ -4,7 +4,7 @@ import { createChart, addShape as addShapeToChart, newId } from '../model/chart-
 import { eraseCellsFromChart } from '../model/erase'
 import { mergeRunCells, applyMerge } from '../model/merge-runs'
 import { regenChain } from '../editor/stroke-fit'
-import { shapeArrayBounds } from '../editor/geometry'
+import { pasteDelta } from '../editor/geometry'
 import type { MaskData } from '../ui/mask'
 import { addressAt } from '../dmx/address'
 
@@ -316,17 +316,9 @@ export const useStore = create<AppState>()((set, get) => ({
     const cb = get().clipboard
     if (!cb || cb.shapes.length === 0) return
     get().beginHistory()
-    // the clicked spot is the TOP-LEFT where the pasted content starts;
-    // whole-cell offset keeps painted dots crisp on their .5 centres
-    let minX = Infinity
-    let minY = Infinity
-    for (const sh of cb.shapes) {
-      const b = shapeArrayBounds(sh)
-      minX = Math.min(minX, b.x)
-      minY = Math.min(minY, b.y)
-    }
-    const dx = Math.round(at.x - minX)
-    const dy = Math.round(at.y - minY)
+    // anchor rule lives in pasteDelta: bulbs land CENTRED on the clicked dot, other
+    // shapes keep the top-left anchor; whole-cell offsets keep .5 centres crisp
+    const { x: dx, y: dy } = pasteDelta(cb.shapes, at)
     const idMap = new Map<string, string>()
     const newShapes: Shape[] = cb.shapes.map((sh) => {
       const nid = newId('shape')

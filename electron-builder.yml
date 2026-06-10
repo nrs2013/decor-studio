@@ -9,6 +9,14 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # dist is a symlink to dist.nosync (iCloud-eviction guard), so the builder's
+  # automatic own-output exclusion misses it — exclude both names explicitly,
+  # along with the other build outputs / docs / helper scripts.
+  - '!{dist,dist.nosync,dist-web,docs,tools,node_modules.nosync}/**'
+  - '!*.md'
+  # fonts are inlined into out/renderer by vite at build time; the raw packages
+  # (3000+ woff files) are dead weight at runtime
+  - '!**/node_modules/@fontsource/**'
 asarUnpack:
   - resources/**
   # node-syphon ships a native .node + Syphon.framework — keep them on disk (not in asar)
