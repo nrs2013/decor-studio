@@ -1422,6 +1422,20 @@ export function EditorCanvas(): React.JSX.Element {
     if (!drawing.current || !d0) return
     if (d0.type === 'freehand') {
       if (!mask || isDrawable(p)) setDraft((d) => (d ? { ...d, points: [...d.points, p] } : d))
+      const d2 = draftRef.current
+      if (d2 && d2.points.length > 1) {
+        let minX = Infinity
+        let maxX = -Infinity
+        let minY = Infinity
+        let maxY = -Infinity
+        for (const q of d2.points) {
+          if (q.x < minX) minX = q.x
+          if (q.x > maxX) maxX = q.x
+          if (q.y < minY) minY = q.y
+          if (q.y > maxY) maxY = q.y
+        }
+        showMeasure(e, `X ${Math.round(maxX - minX)} · Y ${Math.round(maxY - minY)}`)
+      }
     } else {
       let b2 = p
       const a = d0.points[0]
