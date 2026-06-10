@@ -177,6 +177,9 @@ export function EditorCanvas(): React.JSX.Element {
   const pasteMark = useStore((s) => s.pasteMark)
   /** True while ⌘+drag in Select mode paints dots (Paint without leaving the arrow). */
   const paintFromSelect = useRef(false)
+  /** ⌘+press in Select: painting only starts once the pointer crosses into another
+   *  cell — a plain ⌘click stays a click (no stray 1–2 dot strokes, no flash). */
+  const pendingCmdPaint = useRef<{ cell: Point; center: Point } | null>(null)
   const addShape = useStore((s) => s.addShape)
   const snapToPixel = useStore((s) => s.snapToPixel)
   const setSnap = useStore((s) => s.setSnap)
@@ -872,7 +875,7 @@ export function EditorCanvas(): React.JSX.Element {
         useStore.getState().pasteAt(raw) // stamp! stays armed for the next click
         return
       }
-      // ⌘+drag in the arrow = paint dots right here (no tool switch needed)
+      // ⌘+press in the arrow = paint dots, but only once a real drag starts
       if (e.metaKey) {
         const cell = toCell(e.clientX, e.clientY)
         const center = { x: cell.x + 0.5, y: cell.y + 0.5 }
@@ -880,11 +883,7 @@ export function EditorCanvas(): React.JSX.Element {
           showBlocked()
           return
         }
-        useStore.getState().setPasteMark(null)
-        paintFromSelect.current = true
-        drawing.current = true
-        lastCell.current = cell
-        setDraft({ type: 'freehand', points: [center] })
+        pendingCmdPaint.current = { cell, center }
         canvasRef.current?.setPointerCapture(e.pointerId)
         return
       }
@@ -1263,6 +1262,20 @@ export function EditorCanvas(): React.JSX.Element {
       useStore.getState().eraseCells(keys)
       return
     }
+    if (pendingCmdPaint.current && (e.buttons & 1) !== 0) {
+      const cell = toCell(e.clientX, e.clientY)
+      const p0 = pendingCmdPaint.current
+      if (cell.x !== p0.cell.x || cell.y !== p0.cell.y) {
+        // crossed into another cell: the ⌘press is a real drag — start painting now
+        pendingCmdPaint.current = null
+        useStore.getState().setPasteMark(null)
+        paintFromSelect.current = true
+        drawing.current = true
+        lastCell.current = p0.cell
+        setDraft({ type: 'freehand', points: [p0.center] })
+        // fall through: the paint branch below appends up to the current cell
+      }
+    }
     if (drawing.current && (tool === 'pixelpen' || paintFromSelect.current) && draftRef.current) {
       const cell = toCell(e.clientX, e.clientY)
       if (e.shiftKey) {
@@ -1392,6 +1405,21 @@ export function EditorCanvas(): React.JSX.Element {
 
   const onPointerUp = (e: RPointerEvent<HTMLCanvasElement>): void => {
     hideMeasure()
+    if (pendingCmdPaint.current) {
+      // ⌘click without dragging: behave like a normal click (select / set paste mark)
+      pendingCmdPaint.current = null
+      const raw = toCanvasRaw(e.clientX, e.clientY)
+      const st = useStore.getState()
+      const hit = hitTest(raw)
+      if (hit) {
+        st.setPasteMark(null)
+        st.select(hit)
+      } else if (raw.x >= 0 && raw.y >= 0 && raw.x < w && raw.y < h) {
+        st.setPasteMark({ x: Math.floor(raw.x) + 0.5, y: Math.floor(raw.y) + 0.5 })
+      }
+      canvasRef.current?.releasePointerCapture(e.pointerId)
+      return
+    }
     if (rcPending.current && e.button === 2) {
       // right CLICK (no drag): context menu on the shape under the cursor
       const p0 = rcPending.current
