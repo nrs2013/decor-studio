@@ -68,7 +68,13 @@ interface ToolDef {
 const TOOL_GROUPS: { label: string | null; tools: ToolDef[] }[] = [
   {
     label: null,
-    tools: [{ id: 'select', label: 'Select', hint: '(V) 選択 / 移動 / 角や端をドラッグで変形' }]
+    tools: [
+      {
+        id: 'select',
+        label: 'Select',
+        hint: '(V) 選択 / 囲んで複数選択 / Shift+クリック=追加 / 右クリック=結合・削除メニュー'
+      }
+    ]
   },
   {
     label: 'PIXEL',
@@ -76,7 +82,7 @@ const TOOL_GROUPS: { label: string | null; tools: ToolDef[] }[] = [
       {
         id: 'pixelpen',
         label: 'Paint',
-        hint: '(P) なぞって塗る→離すと自動清書。クリック=1ドット・Shift+クリック=前の端から直線の棒・⌘ドラッグ=移動'
+        hint: '(P) なぞって塗る→離すと自動清書。クリック=1ドット・Shift=直線・⌘ドラッグ=移動'
       },
       { id: 'eraser', label: 'Eraser', hint: '(E) ドット消しゴム — はみ出した所をなぞって消す' }
     ]

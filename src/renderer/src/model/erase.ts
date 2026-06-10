@@ -24,21 +24,24 @@ export function eraseCellsFromChart(
       shapes.push(sh)
       continue
     }
-    const runs: Point[][] = []
+    // runs keep their original index ranges so chain corners (verts) can be remapped
+    const runs: { pts: Point[]; start: number }[] = []
     let cur: Point[] = []
+    let curStart = 0
     let hit = false
-    for (const p of sh.points) {
+    sh.points.forEach((p, pi) => {
       if (cells.has(cellKey(p))) {
         hit = true
         if (cur.length) {
-          runs.push(cur)
+          runs.push({ pts: cur, start: curStart })
           cur = []
         }
       } else {
+        if (cur.length === 0) curStart = pi
         cur.push(p)
       }
-    }
-    if (cur.length) runs.push(cur)
+    })
+    if (cur.length) runs.push({ pts: cur, start: curStart })
     if (!hit) {
       shapes.push(sh)
       continue
@@ -52,9 +55,18 @@ export function eraseCellsFromChart(
       continue
     }
     runs.forEach((run, i) => {
-      const pts = run.length === 1 ? [run[0], run[0]] : run // single dot stays renderable
+      const pts = run.pts.length === 1 ? [run.pts[0], run.pts[0]] : run.pts // single dot stays renderable
+      // remap surviving chain corners into this run (always keep both ends)
+      let verts: number[] | undefined
+      if (sh.verts && sh.verts.length >= 2 && run.pts.length >= 2) {
+        const end = run.start + run.pts.length - 1
+        const inner = sh.verts
+          .filter((v) => v > run.start && v < end)
+          .map((v) => v - run.start)
+        verts = [0, ...inner, run.pts.length - 1]
+      }
       if (i === 0) {
-        shapes.push({ ...sh, points: pts })
+        shapes.push({ ...sh, points: pts, verts })
         return
       }
       const nid = newId('shape')
@@ -64,7 +76,7 @@ export function eraseCellsFromChart(
         fixtures.push(nf)
         fid = nf.id
       }
-      shapes.push({ ...sh, id: nid, points: pts, fixtureId: fid })
+      shapes.push({ ...sh, id: nid, points: pts, verts, fixtureId: fid })
     })
   }
 

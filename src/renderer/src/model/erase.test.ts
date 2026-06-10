@@ -50,6 +50,25 @@ describe('eraseCellsFromChart', () => {
     expect(r.chart.fixtures).toHaveLength(0)
   })
 
+  it('splitting a cleaned chain remaps corner verts (remnants stay editable)', () => {
+    const c = createChart({ w: 100, h: 100 })
+    // L字チェーン: (0,0)→(4,0)→(4,3)  verts=[0,4,7]
+    const pts = [
+      cc(0, 0), cc(1, 0), cc(2, 0), cc(3, 0), cc(4, 0),
+      cc(4, 1), cc(4, 2), cc(4, 3)
+    ]
+    const sh: Shape = {
+      id: 'ch1', type: 'freehand', points: pts, display: 'stroke', strokeWidth: 1,
+      verts: [0, 4, 7]
+    }
+    const r = eraseCellsFromChart({ ...c, shapes: [sh], fixtures: [] }, new Set(['2,0']))
+    expect(r.chart.shapes).toHaveLength(2)
+    const [a, b] = r.chart.shapes
+    expect(a.verts).toEqual([0, 1]) // (0,0)-(1,0): 両端のみ
+    expect(b.verts).toEqual([0, 1, 4]) // (3,0)-(4,0)-(4,3): 角(4,0)が生き残る
+    expect(b.points[b.verts![1]]).toEqual(cc(4, 0))
+  })
+
   it('leaves non-freehand shapes and missed strokes untouched', () => {
     const c = paintedChart()
     const line: Shape = {

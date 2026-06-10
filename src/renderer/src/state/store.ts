@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type { Chart, Shape, Fixture, ChannelMode, Point } from '../model/types'
 import { createChart, addShape as addShapeToChart, newId } from '../model/chart-model'
 import { eraseCellsFromChart } from '../model/erase'
+import { mergeRunCells, applyMerge } from '../model/merge-runs'
+import { regenChain } from '../editor/stroke-fit'
 import type { MaskData } from '../ui/mask'
 import { addressAt } from '../dmx/address'
 
@@ -23,7 +25,10 @@ interface AppState {
   chart: Chart
   mode: Mode
   tool: Tool
+  /** Single-selection focus (handles / Inspector). Null when 0 or 2+ are selected. */
   selectedId: string | null
+  /** The full selection set (rubber band / Shift+click). */
+  selectedIds: string[]
   dmxByUniverse: Record<number, Uint8Array>
   lastSeenByUniverse: Record<number, number>
   manualMode: boolean
@@ -55,6 +60,13 @@ interface AppState {
   setMode: (m: Mode) => void
   setTool: (t: Tool) => void
   select: (id: string | null) => void
+  selectMany: (ids: string[]) => void
+  toggleSelect: (id: string) => void
+  /** Deletes several shapes (group delete) in one undo step. */
+  removeShapes: (ids: string[]) => void
+  /** 「1本に結合」: merges the selected painted runs into one chain (one fixture),
+   *  bridging gaps with straight dot runs. */
+  mergeShapes: (ids: string[]) => void
   updateShape: (id: string, patch: Partial<Shape>) => void
   addShape: (init: { type: Shape['type']; points: Shape['points'] } & Partial<Shape>) => string
   removeShape: (id: string) => void
@@ -154,6 +166,7 @@ export const useStore = create<AppState>()((set, get) => ({
   mode: typeof window !== 'undefined' && window.location.search.includes('live') ? 'live' : 'edit',
   tool: 'select',
   selectedId: null,
+  selectedIds: [],
   dmxByUniverse: {},
   lastSeenByUniverse: {},
   manualMode: false,
@@ -187,6 +200,7 @@ export const useStore = create<AppState>()((set, get) => ({
         history: s.history.slice(0, -1),
         future: [s.chart, ...s.future].slice(0, 50),
         selectedId: null,
+        selectedIds: [],
         histTag: null
       }
     }),
@@ -199,6 +213,7 @@ export const useStore = create<AppState>()((set, get) => ({
         future: s.future.slice(1),
         history: [...s.history.slice(-49), s.chart],
         selectedId: null,
+        selectedIds: [],
         histTag: null
       }
     }),
@@ -218,10 +233,45 @@ export const useStore = create<AppState>()((set, get) => ({
       }
     }))
   },
-  setChart: (chart) => set({ chart, selectedId: null }),
+  setChart: (chart) => set({ chart, selectedId: null, selectedIds: [] }),
   setMode: (mode) => set({ mode }),
   setTool: (tool) => set({ tool }),
-  select: (selectedId) => set({ selectedId }),
+  select: (selectedId) =>
+    set({ selectedId, selectedIds: selectedId ? [selectedId] : [] }),
+  selectMany: (ids) =>
+    set({ selectedIds: ids, selectedId: ids.length === 1 ? ids[0] : null }),
+  toggleSelect: (id) =>
+    set((s) => {
+      const ids = s.selectedIds.includes(id)
+        ? s.selectedIds.filter((x) => x !== id)
+        : [...s.selectedIds, id]
+      return { selectedIds: ids, selectedId: ids.length === 1 ? ids[0] : null }
+    }),
+  removeShapes: (ids) => {
+    if (ids.length === 0) return
+    get().beginHistory()
+    const drop = new Set(ids)
+    set((s) => ({
+      chart: {
+        ...s.chart,
+        shapes: s.chart.shapes.filter((sh) => !drop.has(sh.id)),
+        fixtures: s.chart.fixtures.filter((f) => !drop.has(f.shapeId))
+      },
+      selectedId: null,
+      selectedIds: []
+    }))
+  },
+  mergeShapes: (ids) => {
+    const m = mergeRunCells(get().chart, ids)
+    if (!m) return
+    get().beginHistory()
+    const { points, verts } = regenChain(m.vertCells)
+    set((s) => ({
+      chart: applyMerge(s.chart, m.keepId, points, verts, m.dropIds),
+      selectedId: m.keepId,
+      selectedIds: [m.keepId]
+    }))
+  },
 
   updateShape: (id, patch) => {
     get().beginHistory(`upd-${id}`)
@@ -237,7 +287,7 @@ export const useStore = create<AppState>()((set, get) => ({
     get().beginHistory()
     const c2 = addShapeToChart(get().chart, init)
     const created = c2.shapes[c2.shapes.length - 1]
-    set({ chart: c2, selectedId: created.id })
+    set({ chart: c2, selectedId: created.id, selectedIds: [created.id] })
     return created.id
   },
 
@@ -249,7 +299,8 @@ export const useStore = create<AppState>()((set, get) => ({
         shapes: s.chart.shapes.filter((sh) => sh.id !== id),
         fixtures: s.chart.fixtures.filter((f) => f.shapeId !== id)
       },
-      selectedId: s.selectedId === id ? null : s.selectedId
+      selectedId: s.selectedId === id ? null : s.selectedId,
+      selectedIds: s.selectedIds.filter((x) => x !== id)
     }))
   },
 
@@ -359,8 +410,13 @@ export const useStore = create<AppState>()((set, get) => ({
     set((s) => {
       const r = eraseCellsFromChart(s.chart, new Set(keys))
       if (!r.changed) return {}
-      const selAlive = r.chart.shapes.some((sh) => sh.id === s.selectedId)
-      return { chart: r.chart, selectedId: selAlive ? s.selectedId : null }
+      const alive = new Set(r.chart.shapes.map((sh) => sh.id))
+      const ids = s.selectedIds.filter((x) => alive.has(x))
+      return {
+        chart: r.chart,
+        selectedIds: ids,
+        selectedId: ids.length === 1 ? ids[0] : null
+      }
     })
   },
   autoFill: (opts) => {
@@ -437,7 +493,11 @@ export const useStore = create<AppState>()((set, get) => ({
         copy.fixtureId = nfid
         fixtures = [...fixtures, { ...fx, id: nfid, shapeId: nid }]
       }
-      return { chart: { ...s.chart, shapes: [...s.chart.shapes, copy], fixtures }, selectedId: nid }
+      return {
+        chart: { ...s.chart, shapes: [...s.chart.shapes, copy], fixtures },
+        selectedId: nid,
+        selectedIds: [nid]
+      }
     })
   }
 }))

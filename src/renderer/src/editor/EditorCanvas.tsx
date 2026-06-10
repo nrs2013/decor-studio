@@ -44,12 +44,12 @@ const BOXY = new Set<Shape['type']>(['rect', 'ellipse', 'triangle', 'star', 'pol
 type Interaction =
   | {
       kind: 'move'
-      id: string
+      ids: string[] // one or many (group move)
       sx: number
       sy: number
-      orig: Point[]
+      origs: Point[][]
       forceSnap?: boolean
-      cand?: SnapCand
+      cand?: SnapCand // alignment targets (single-shape moves only)
       sal?: { xs: number[]; ys: number[] }
     }
   | { kind: 'vertex'; id: string; idx: number; cand?: SnapCand }
@@ -170,6 +170,7 @@ export function EditorCanvas(): React.JSX.Element {
   const chart = useStore((s) => s.chart)
   const tool = useStore((s) => s.tool)
   const selectedId = useStore((s) => s.selectedId)
+  const selectedIds = useStore((s) => s.selectedIds)
   const select = useStore((s) => s.select)
   const addShape = useStore((s) => s.addShape)
   const snapToPixel = useStore((s) => s.snapToPixel)
@@ -209,8 +210,13 @@ export function EditorCanvas(): React.JSX.Element {
   const interaction = useRef<Interaction | null>(null)
   const lastCell = useRef<Point | null>(null)
   const guidesRef = useRef<{ x: number | null; y: number | null }>({ x: null, y: null })
-  /** End of the last painted run — the anchor for Shift+click bar chaining. */
-  const lastPaintEnd = useRef<{ id: string; cell: Point } | null>(null)
+  /** Rubber-band selection rectangle (Select tool drag on empty space). */
+  const marquee = useRef<{ x0: number; y0: number; x1: number; y1: number; add: boolean } | null>(
+    null
+  )
+  /** Right-button press: becomes a context menu on click, a grab-move on drag. */
+  const rcPending = useRef<{ id: string; x: number; y: number } | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const posRef = useRef<HTMLSpanElement>(null)
   const [cursorOv, setCursorOv] = useState<string | null>(null)
   // "why didn't that draw?" toast — silent blocking is forbidden
@@ -392,6 +398,12 @@ export function EditorCanvas(): React.JSX.Element {
         drawShapeInto(ctx, dShape, C.accent, 'rgba(123,197,232,0.3)', boostRef.current)
       }
     }
+    // every selected shape lights up white; handles only for a single selection
+    for (const sid of selectedIds) {
+      if (sid === selectedId) continue // drawn below with bounds + handles
+      const ssh = chart.shapes.find((s) => s.id === sid)
+      if (ssh) drawShapeInto(ctx, ssh, SELECT_STROKE, 'rgba(255,255,255,0.25)', boostRef.current)
+    }
     const sel = chart.shapes.find((s) => s.id === selectedId)
     if (sel) {
       drawShapeInto(ctx, sel, SELECT_STROKE, 'rgba(255,255,255,0.25)', boostRef.current)
@@ -429,6 +441,21 @@ export function EditorCanvas(): React.JSX.Element {
         ctx.lineTo(1e4, g.y)
       }
       ctx.stroke()
+      ctx.setLineDash([])
+    }
+    // rubber-band rectangle
+    const mq = marquee.current
+    if (mq) {
+      const mx = Math.min(mq.x0, mq.x1)
+      const my = Math.min(mq.y0, mq.y1)
+      const mw = Math.abs(mq.x1 - mq.x0)
+      const mh = Math.abs(mq.y1 - mq.y0)
+      ctx.fillStyle = 'rgba(123,197,232,0.07)'
+      ctx.fillRect(mx, my, mw, mh)
+      ctx.strokeStyle = C.accent
+      ctx.lineWidth = 1 / v.scale
+      ctx.setLineDash([5 / v.scale, 4 / v.scale])
+      ctx.strokeRect(mx, my, mw, mh)
       ctx.setLineDash([])
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -509,6 +536,7 @@ export function EditorCanvas(): React.JSX.Element {
         setSpaceUi(true)
       } else if (e.code === 'Escape') {
         hideMeasure()
+        setCtxMenu(null)
         if (draftRef.current) {
           setDraft(null)
           drawing.current = false
@@ -569,6 +597,11 @@ export function EditorCanvas(): React.JSX.Element {
           e.preventDefault()
           return
         }
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && st.selectedIds.length > 1) {
+        st.removeShapes(st.selectedIds) // group delete = one undo step
+        e.preventDefault()
+        return
       }
       const sel = st.selectedId
       if (!sel) return
@@ -719,36 +752,43 @@ export function EditorCanvas(): React.JSX.Element {
     return hd
   }
 
-  /** Starts a whole-shape move gesture (records one undo step + alignment targets). */
-  const startMove = (id: string, raw: Point, forceSnap: boolean): boolean => {
-    const sh = chart.shapes.find((s) => s.id === id)
-    if (!sh) return false
-    select(id)
+  /** Starts a move gesture for one or many shapes (one undo step; alignment snapping
+   *  only when a single shape moves). */
+  const startMove = (ids: string[], raw: Point, forceSnap: boolean): boolean => {
+    const shs = ids
+      .map((i) => chart.shapes.find((s) => s.id === i))
+      .filter((s): s is Shape => !!s)
+    if (!shs.length) return false
     useStore.getState().beginHistory()
+    const single = shs.length === 1 ? shs[0] : null
     interaction.current = {
       kind: 'move',
-      id,
+      ids: shs.map((s) => s.id),
       sx: raw.x,
       sy: raw.y,
-      orig: sh.points.map((pp) => ({ ...pp })),
+      origs: shs.map((s) => s.points.map((pp) => ({ ...pp }))),
       forceSnap,
-      cand: buildCandidates(chart.shapes, id),
-      sal: salientOf(sh)
+      cand: single ? buildCandidates(chart.shapes, single.id) : undefined,
+      sal: single ? salientOf(single) : undefined
     }
     return true
   }
 
   const onPointerDown = (e: RPointerEvent<HTMLCanvasElement>): void => {
+    if (ctxMenu) setCtxMenu(null)
     if (spaceHeld.current || e.button === 1) {
       panning.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty }
       canvasRef.current?.setPointerCapture(e.pointerId)
       return
     }
     if (e.button === 2) {
-      // right-drag: grab & move whatever is under the cursor, in any tool
+      // right button: click = context menu, drag = grab & move (decided on movement)
       const raw = toCanvasRaw(e.clientX, e.clientY)
       const hit = hitTest(raw)
-      if (hit && startMove(hit, raw, true)) canvasRef.current?.setPointerCapture(e.pointerId)
+      if (hit) {
+        rcPending.current = { id: hit, x: e.clientX, y: e.clientY }
+        canvasRef.current?.setPointerCapture(e.pointerId)
+      }
       return
     }
     if (e.button !== 0) return
@@ -792,8 +832,22 @@ export function EditorCanvas(): React.JSX.Element {
         }
       }
       const hit = hitTest(raw)
-      select(hit)
-      if (hit && startMove(hit, raw, false)) canvasRef.current?.setPointerCapture(e.pointerId)
+      if (hit) {
+        if (e.shiftKey) {
+          useStore.getState().toggleSelect(hit) // Shift+click = add / remove
+          return
+        }
+        // clicking inside a multi-selection moves the whole group
+        const ids =
+          selectedIds.includes(hit) && selectedIds.length > 1 ? selectedIds : [hit]
+        if (!selectedIds.includes(hit)) select(hit)
+        if (startMove(ids, raw, false)) canvasRef.current?.setPointerCapture(e.pointerId)
+        return
+      }
+      // empty space: rubber-band selection (Shift adds to the current selection)
+      marquee.current = { x0: raw.x, y0: raw.y, x1: raw.x, y1: raw.y, add: e.shiftKey }
+      if (!e.shiftKey) select(null)
+      canvasRef.current?.setPointerCapture(e.pointerId)
       return
     }
     // Cmd/Opt + drag in any drawing tool = grab & move without switching to Select
@@ -801,7 +855,8 @@ export function EditorCanvas(): React.JSX.Element {
       const raw = toCanvasRaw(e.clientX, e.clientY)
       const hit = hitTest(raw)
       if (hit) {
-        if (startMove(hit, raw, true)) canvasRef.current?.setPointerCapture(e.pointerId)
+        select(hit)
+        if (startMove([hit], raw, true)) canvasRef.current?.setPointerCapture(e.pointerId)
         return
       }
     }
@@ -819,51 +874,6 @@ export function EditorCanvas(): React.JSX.Element {
       if (mask && !isDrawable(center)) {
         showBlocked() // never block silently
         return
-      }
-      // Shift+click: one straight dot bar from the end of the previous painted run
-      // (Aseprite-style) — keep clicking to grow the chain, 1 fixture per chain.
-      if (e.shiftKey && lastPaintEnd.current) {
-        const st = useStore.getState()
-        const anchor = lastPaintEnd.current
-        const sh = st.chart.shapes.find((s) => s.id === anchor.id)
-        if (sh && sh.type === 'freehand' && (sh.strokeWidth || 1) <= 1) {
-          if (sh.verts && sh.verts.length >= 2) {
-            // chain: rebuild through existing corners + the new one
-            const vc = sh.verts.map((pi) => cellOfPt(sh.points[pi]))
-            vc.push(cell)
-            const { points, verts } = regenChain(vc)
-            if (!mask || points.every((c) => isDrawable(c))) {
-              st.updateShape(anchor.id, { points, verts })
-              st.select(anchor.id)
-              lastPaintEnd.current = { id: anchor.id, cell }
-              return
-            }
-          } else {
-            // raw stroke (or single dot): append a straight run, start tracking corners
-            const single =
-              sh.points.length === 2 &&
-              sh.points[0].x === sh.points[1].x &&
-              sh.points[0].y === sh.points[1].y
-            const base = single ? [sh.points[0]] : sh.points
-            const adds: Point[] = []
-            for (const c of cellsBetween(anchor.cell, cell)) {
-              const cc = { x: c.x + 0.5, y: c.y + 0.5 }
-              if (mask && !isDrawable(cc)) break
-              adds.push(cc)
-            }
-            if (adds.length) {
-              const points = [...base, ...adds]
-              const verts = single
-                ? [0, points.length - 1]
-                : [0, base.length - 1, points.length - 1]
-              st.updateShape(anchor.id, { points, verts })
-              st.select(anchor.id)
-              lastPaintEnd.current = { id: anchor.id, cell: cellOfPt(points[points.length - 1]) }
-              return
-            }
-          }
-        }
-        lastPaintEnd.current = null // anchor went stale: fall through to a fresh stroke
       }
       drawing.current = true
       lastCell.current = cell
@@ -923,10 +933,32 @@ export function EditorCanvas(): React.JSX.Element {
         if (cur !== cursorOv) setCursorOv(cur)
       }
     }
+    if (rcPending.current && (e.buttons & 2) !== 0) {
+      // right-drag past the threshold = grab & move (otherwise it stays a menu click)
+      const d = Math.hypot(e.clientX - rcPending.current.x, e.clientY - rcPending.current.y)
+      if (d > 4) {
+        const p0 = rcPending.current
+        rcPending.current = null
+        const st0 = useStore.getState()
+        const ids =
+          st0.selectedIds.includes(p0.id) && st0.selectedIds.length > 1
+            ? st0.selectedIds
+            : [p0.id]
+        if (!st0.selectedIds.includes(p0.id)) st0.select(p0.id)
+        startMove(ids, toCanvasRaw(p0.x, p0.y), true)
+      }
+    }
     if (panning.current) {
       const pan = panning.current
       userAdjusted.current = true
       setView((v) => ({ ...v, tx: pan.tx + (e.clientX - pan.x), ty: pan.ty + (e.clientY - pan.y) }))
+      return
+    }
+    if (marquee.current) {
+      const raw = toCanvasRaw(e.clientX, e.clientY)
+      marquee.current.x1 = raw.x
+      marquee.current.y1 = raw.y
+      drawRef.current()
       return
     }
     if (interaction.current) {
@@ -951,7 +983,9 @@ export function EditorCanvas(): React.JSX.Element {
           dy = Math.round(dy)
         }
         guidesRef.current = { x: gx, y: gy }
-        st.setShapePoints(it.id, it.orig.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })))
+        it.ids.forEach((sid, i) =>
+          st.setShapePoints(sid, it.origs[i].map((pt) => ({ x: pt.x + dx, y: pt.y + dy })))
+        )
         showMeasure(e, `ΔX ${Math.round(dx)} · ΔY ${Math.round(dy)}`)
         return
       }
@@ -1243,14 +1277,8 @@ export function EditorCanvas(): React.JSX.Element {
           // なぞり×自動清書: fit the raw trail on release. Recorded as its own history
           // step, so Z = back to the raw trail, Z again = stroke gone.
           const fit = cleanPaintStroke(pp)
-          if (
-            fit.kind !== 'raw' &&
-            (!mask || fit.points.every((c) => isDrawable(c)))
-          ) {
+          if (fit.kind !== 'raw' && (!mask || fit.points.every((c) => isDrawable(c)))) {
             useStore.getState().updateShape(id, { points: fit.points, verts: fit.verts })
-            lastPaintEnd.current = { id, cell: cellOfPt(fit.points[fit.points.length - 1]) }
-          } else {
-            lastPaintEnd.current = { id, cell: cellOfPt(pp[pp.length - 1]) }
           }
         }
       }
@@ -1265,6 +1293,38 @@ export function EditorCanvas(): React.JSX.Element {
 
   const onPointerUp = (e: RPointerEvent<HTMLCanvasElement>): void => {
     hideMeasure()
+    if (rcPending.current && e.button === 2) {
+      // right CLICK (no drag): context menu on the shape under the cursor
+      const p0 = rcPending.current
+      rcPending.current = null
+      const st = useStore.getState()
+      if (!st.selectedIds.includes(p0.id)) st.select(p0.id)
+      const wr = wrapRef.current?.getBoundingClientRect()
+      if (wr) setCtxMenu({ x: p0.x - wr.left + 2, y: p0.y - wr.top + 2 })
+      canvasRef.current?.releasePointerCapture(e.pointerId)
+      return
+    }
+    if (marquee.current) {
+      const m = marquee.current
+      marquee.current = null
+      const x0 = Math.min(m.x0, m.x1)
+      const x1 = Math.max(m.x0, m.x1)
+      const y0 = Math.min(m.y0, m.y1)
+      const y1 = Math.max(m.y0, m.y1)
+      if (x1 - x0 > 2 || y1 - y0 > 2) {
+        const inIds = chart.shapes
+          .filter((s) => {
+            const b = shapeArrayBounds(s)
+            return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
+          })
+          .map((s) => s.id)
+        const st = useStore.getState()
+        st.selectMany(m.add ? Array.from(new Set([...st.selectedIds, ...inIds])) : inIds)
+      }
+      drawRef.current()
+      canvasRef.current?.releasePointerCapture(e.pointerId)
+      return
+    }
     if (panning.current) {
       panning.current = null
       canvasRef.current?.releasePointerCapture(e.pointerId)
@@ -1349,6 +1409,54 @@ export function EditorCanvas(): React.JSX.Element {
         </div>
       )}
       <div ref={measureRef} style={measureBadge} />
+      {ctxMenu && (
+        <div
+          style={{
+            position: 'absolute',
+            left: Math.min(ctxMenu.x, (wrapRef.current?.clientWidth ?? 300) - 170),
+            top: Math.min(ctxMenu.y, (wrapRef.current?.clientHeight ?? 200) - 80),
+            zIndex: 10,
+            background: 'rgba(15,14,13,0.97)',
+            border: `0.5px solid ${C.border}`,
+            borderRadius: 5,
+            padding: 4,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            minWidth: 160
+          }}
+        >
+          <button
+            style={menuBtn}
+            disabled={
+              chart.shapes.filter(
+                (s) =>
+                  selectedIds.includes(s.id) &&
+                  s.type === 'freehand' &&
+                  (s.strokeWidth || 1) <= 1 &&
+                  !s.repeat
+              ).length < 2
+            }
+            onClick={() => {
+              const st = useStore.getState()
+              st.mergeShapes(st.selectedIds)
+              setCtxMenu(null)
+            }}
+          >
+            1本に結合（同じフェーダーで光る）
+          </button>
+          <button
+            style={{ ...menuBtn, color: '#e0726a' }}
+            onClick={() => {
+              const st = useStore.getState()
+              st.removeShapes(st.selectedIds)
+              setCtxMenu(null)
+            }}
+          >
+            削除（{selectedIds.length}個）
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1362,6 +1470,17 @@ const zoomBtn: React.CSSProperties = {
   fontSize: 11,
   fontFamily: "'Bebas Neue', sans-serif",
   letterSpacing: '0.08em',
+  cursor: 'pointer'
+}
+const menuBtn: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: C.text,
+  textAlign: 'left',
+  padding: '7px 10px',
+  borderRadius: 3,
+  fontSize: 12,
+  fontFamily: F.ui,
   cursor: 'pointer'
 }
 const measureBadge: React.CSSProperties = {
