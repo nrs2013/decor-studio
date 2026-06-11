@@ -6,7 +6,7 @@ import { mergeRunCells, applyMerge } from '../model/merge-runs'
 import { regenChain } from '../editor/stroke-fit'
 import { pasteDelta } from '../editor/geometry'
 import type { MaskData } from '../ui/mask'
-import { addressAt } from '../dmx/address'
+import { addressAt, nextAddressAfter, repeatCount } from '../dmx/address'
 
 export type Mode = 'edit' | 'live'
 export type Tool =
@@ -35,6 +35,9 @@ interface AppState {
   manualMode: boolean
   manualByFixture: Record<string, [number, number, number]>
   snapToPixel: boolean
+  /** ステップアップモード: when ON, every newly drawn/dropped shape is auto-patched
+   *  at the next free address (and pasted clones renumber instead of cloning). */
+  stepPatch: boolean
   /** Stroke width (px) that Paint / ⌘-paint writes with. */
   penWidth: number
   /** Blueprint-style W/H dimension labels on the chart's punch-out islands. */
@@ -97,6 +100,10 @@ interface AppState {
   setUnderlayVisible: (visible: boolean) => void
 
   upsertFixture: (shapeId: string, patch: Partial<Omit<Fixture, 'id' | 'shapeId'>>) => void
+  /** Bulk-apply patch fields to every given shape's fixture (creating fixtures where
+   *  missing) — ONE undo step; the multi-select Inspector's 一括変更. */
+  bulkPatch: (shapeIds: string[], patch: Partial<Omit<Fixture, 'id' | 'shapeId'>>) => void
+  setStepPatch: (on: boolean) => void
   removeFixture: (shapeId: string) => void
   setManualMode: (on: boolean) => void
   setManualColor: (fixtureId: string, rgb: [number, number, number]) => void
@@ -192,6 +199,7 @@ export const useStore = create<AppState>()((set, get) => ({
   manualMode: false,
   manualByFixture: {},
   snapToPixel: true,
+  stepPatch: false,
   penWidth: 1,
   showDims: true,
   showIds: true,
@@ -339,6 +347,22 @@ export const useStore = create<AppState>()((set, get) => ({
       const sh = newShapes.find((x) => x.id === shapeId)
       if (sh) sh.fixtureId = nf.id
     }
+    // ステップアップ中のスタンプは「クローン番地」ではなく連番で刻む — ボール球を
+    // ペタペタ押すだけで仕込みが進む
+    if (get().stepPatch && newFixtures.length > 0) {
+      const all = get().chart.fixtures
+      let prev: Fixture | undefined = all[all.length - 1]
+      let prevShape = prev ? get().chart.shapes.find((x) => x.id === prev!.shapeId) : undefined
+      for (const nf of newFixtures) {
+        const addr = prev
+          ? nextAddressAfter(prev, prevShape ? repeatCount(prevShape) : 1)
+          : { universe: 0, start: 1 }
+        nf.universe = addr.universe
+        nf.start = addr.start
+        prev = nf
+        prevShape = newShapes.find((x) => x.id === nf.shapeId)
+      }
+    }
     set((s) => ({
       chart: {
         ...s.chart,
@@ -362,8 +386,30 @@ export const useStore = create<AppState>()((set, get) => ({
 
   addShape: (init) => {
     get().beginHistory()
-    const c2 = addShapeToChart(get().chart, init)
+    let c2 = addShapeToChart(get().chart, init)
     const created = c2.shapes[c2.shapes.length - 1]
+    // ステップアップ: the new shape lands right after the last fixture's span
+    // (mode inherited) — heavy plots never need per-shape manual addressing
+    if (get().stepPatch) {
+      const prev = c2.fixtures[c2.fixtures.length - 1]
+      const prevShape = prev ? c2.shapes.find((s) => s.id === prev.shapeId) : undefined
+      const addr = prev
+        ? nextAddressAfter(prev, prevShape ? repeatCount(prevShape) : 1)
+        : { universe: 0, start: 1 }
+      const fx: Fixture = {
+        id: newId('fx'),
+        shapeId: created.id,
+        universe: addr.universe,
+        start: addr.start,
+        mode: prev?.mode ?? 'rgb',
+        ...(prev?.mode === 'dim' && prev.fixedColor ? { fixedColor: prev.fixedColor } : {})
+      }
+      c2 = {
+        ...c2,
+        shapes: c2.shapes.map((s) => (s.id === created.id ? { ...s, fixtureId: fx.id } : s)),
+        fixtures: [...c2.fixtures, fx]
+      }
+    }
     set({ chart: c2, selectedId: created.id, selectedIds: [created.id] })
     return created.id
   },
@@ -438,6 +484,30 @@ export const useStore = create<AppState>()((set, get) => ({
     })
   },
 
+  bulkPatch: (shapeIds, patch) => {
+    get().beginHistory('bulkpatch') // scrubbing a field = one undo step
+    set((s) => {
+      const idSet = new Set(shapeIds)
+      const have = new Set(
+        s.chart.fixtures.filter((f) => idSet.has(f.shapeId)).map((f) => f.shapeId)
+      )
+      const updated = s.chart.fixtures.map((f) =>
+        idSet.has(f.shapeId) ? { ...f, ...patch } : f
+      )
+      const created: Fixture[] = shapeIds
+        .filter((id) => !have.has(id))
+        .map((id) => ({
+          id: newId('fx'),
+          shapeId: id,
+          universe: 0,
+          start: 1,
+          mode: 'rgb' as ChannelMode,
+          ...patch
+        }))
+      return { chart: { ...s.chart, fixtures: [...updated, ...created] } }
+    })
+  },
+
   removeFixture: (shapeId) => {
     get().beginHistory()
     set((s) => ({
@@ -472,6 +542,7 @@ export const useStore = create<AppState>()((set, get) => ({
     set((s) => ({ chart: { ...s.chart, settings: { ...s.chart.settings, glowAmount: px } } })),
   setSyphonName: (name) => set((s) => ({ chart: { ...s.chart, syphon: { name } } })),
   setSnap: (on) => set({ snapToPixel: on }),
+  setStepPatch: (on) => set({ stepPatch: on }),
   setUnderlayMask: (patch) =>
     set((s) => {
       if (!s.chart.underlay) return {}

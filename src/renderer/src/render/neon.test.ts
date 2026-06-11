@@ -9,7 +9,7 @@ import {
   neonGlowAmount,
   NEON_FONTS
 } from './neon'
-import { repeatCount, addressAt } from '../dmx/address'
+import { repeatCount, addressAt, nextAddressAfter } from '../dmx/address'
 
 const neonShape = (over: Partial<Shape> = {}): Shape =>
   ({
@@ -105,5 +105,26 @@ describe('font registry & glow dial', () => {
     expect(neonGlowAmount({} as Shape)).toBe(55)
     expect(neonGlowAmount({ neonGlow: -5 } as Shape)).toBe(0)
     expect(neonGlowAmount({ neonGlow: 250 } as Shape)).toBe(100)
+  })
+})
+
+describe('nextAddressAfter: ステップアップの次の空き番地', () => {
+  it('a single rgb fixture: next = start + 3', () => {
+    expect(nextAddressAfter({ universe: 0, start: 1, mode: 'rgb' }, 1)).toEqual({
+      universe: 0,
+      start: 4
+    })
+  })
+  it('a 7-tube neon (step 3) ends at 19..21 → next is 22', () => {
+    expect(nextAddressAfter({ universe: 0, start: 1, mode: 'rgb', addressStep: 3 }, 7)).toEqual({
+      universe: 0,
+      start: 22
+    })
+  })
+  it('rolls into the next universe past channel 512', () => {
+    expect(nextAddressAfter({ universe: 0, start: 511, mode: 'rgb' }, 1)).toEqual({
+      universe: 1,
+      start: 2
+    })
   })
 })

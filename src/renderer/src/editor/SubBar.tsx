@@ -21,6 +21,8 @@ export function SubBar(): React.JSX.Element {
   const maskEmpty = useStore((s) => s.maskEmpty)
   const showDims = useStore((s) => s.showDims)
   const setShowDims = useStore((s) => s.setShowDims)
+  const stepPatch = useStore((s) => s.stepPatch)
+  const setStepPatch = useStore((s) => s.setStepPatch)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [fillOpen, setFillOpen] = useState(false)
   const u = chart.underlay
@@ -70,6 +72,19 @@ export function SubBar(): React.JSX.Element {
       </button>
       <button style={fileBtn} onClick={() => setSettingsOpen(true)}>
         Setup
+      </button>
+
+      <div style={sep} />
+
+      <button
+        style={{
+          ...buttonStyle({ active: stepPatch, accent: C.green, accentRGB: '168,232,120' }),
+          padding: '6px 12px'
+        }}
+        onClick={() => setStepPatch(!stepPatch)}
+        title="ステップアップモード：描く（置く・スタンプする）たびに、次の空き番地へ自動でパッチされます"
+      >
+        Step Patch
       </button>
 
       <div style={sep} />

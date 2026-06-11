@@ -61,15 +61,86 @@ const rowGap = 14
 export function Inspector(): React.JSX.Element {
   const chart = useStore((s) => s.chart)
   const selectedId = useStore((s) => s.selectedId)
+  const selectedIds = useStore((s) => s.selectedIds)
   const updateShape = useStore((s) => s.updateShape)
   const upsertFixture = useStore((s) => s.upsertFixture)
+  const bulkPatch = useStore((s) => s.bulkPatch)
   const removeShape = useStore((s) => s.removeShape)
+  const removeShapes = useStore((s) => s.removeShapes)
 
   const shape = chart.shapes.find((s) => s.id === selectedId)
   const fixture = chart.fixtures.find((f) => f.shapeId === selectedId)
   const open = shape && (shape.type === 'line' || shape.type === 'polyline' || shape.type === 'freehand')
 
   if (!shape) {
+    // multi-selection: one panel, every change lands on ALL selected fixtures at once
+    // (のむさん「全選択を統括して一気にユニバースや番地を変えたい」)
+    if (selectedIds.length > 1) {
+      const ids = selectedIds
+      const fxs = chart.fixtures.filter((f) => ids.includes(f.shapeId))
+      const common = <K extends 'universe' | 'start'>(k: K, fallback: number): number => {
+        if (!fxs.length) return fallback
+        return fxs[0][k]
+      }
+      return (
+        <aside style={asideStyle}>
+          <SectionTitle>Multi</SectionTitle>
+          <div style={{ fontFamily: F.mono, fontSize: 11, color: C.hint, marginBottom: 4 }}>
+            {ids.length} fixtures selected · patched {fxs.length}/{ids.length}
+          </div>
+          <div
+            style={{ fontFamily: F.ui, fontSize: 11, color: C.faint, marginBottom: rowGap, lineHeight: 1.5 }}
+          >
+            ここでの変更は選択中の全部にまとめて効きます（未パッチの物には新しくパッチ）。1本に結合は ⌘G。
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Field label="Universe">
+              <NumberField
+                value={common('universe', 0)}
+                min={0}
+                max={32767}
+                onChange={(v) => bulkPatch(ids, { universe: v })}
+              />
+            </Field>
+            <Field label="DMX Addr">
+              <NumberField
+                value={common('start', 1)}
+                min={1}
+                max={512}
+                onChange={(v) => bulkPatch(ids, { start: v })}
+              />
+            </Field>
+          </div>
+          <Field label="Type">
+            <select
+              value={fxs[0]?.mode ?? 'rgb'}
+              style={{ ...inputStyle, fontFamily: F.ui }}
+              onChange={(e) => bulkPatch(ids, { mode: e.target.value as ChannelMode })}
+            >
+              {CHANNEL_MODES.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div style={{ fontFamily: F.ui, fontSize: 11, color: C.faint }}>
+            同じ番地にすれば全部が1本のフェーダーで一斉点灯になります
+          </div>
+          <div style={{ flex: 1 }} />
+          <button
+            style={{
+              ...buttonStyle({ accent: '#e0726a', accentRGB: '224,114,106' }),
+              width: '100%',
+              marginTop: rowGap
+            }}
+            onClick={() => removeShapes(ids)}
+          >
+            Delete {ids.length}
+          </button>
+        </aside>
+      )
+    }
     return (
       <aside style={asideStyle}>
         <SectionTitle>Fixture</SectionTitle>

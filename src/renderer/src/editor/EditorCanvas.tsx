@@ -869,6 +869,12 @@ export function EditorCanvas(): React.JSX.Element {
           return
         }
       }
+      // ⌘G = 1本に結合（the context menu's merge, as a shortcut）
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'g' || e.key === 'G')) {
+        if (st.selectedIds.length >= 2) st.mergeShapes(st.selectedIds)
+        e.preventDefault()
+        return
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && st.selectedIds.length > 1) {
         st.removeShapes(st.selectedIds) // group delete = one undo step
         e.preventDefault()

@@ -71,3 +71,97 @@ describe('stamp copy/paste (store)', () => {
     expect(useStore.getState().chart.shapes).toHaveLength(1)
   })
 })
+
+describe('ステップアップモード (store)', () => {
+  beforeEach(() => {
+    useStore.setState({
+      chart: seed(),
+      stepPatch: true,
+      selectedId: null,
+      selectedIds: [],
+      clipboard: null,
+      pasteArmed: false,
+      history: [],
+      future: [],
+      histTag: null,
+      histAt: 0
+    })
+  })
+  it('addShape lands right after the last fixture, inheriting its mode', () => {
+    const id = useStore.getState().addShape({
+      type: 'line',
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 }
+      ]
+    })
+    const fx = useStore.getState().chart.fixtures.find((f) => f.shapeId === id)
+    expect(fx).toBeTruthy()
+    expect(fx!.universe).toBe(2)
+    expect(fx!.start).toBe(36)
+    expect(fx!.mode).toBe('rgb')
+    const id2 = useStore.getState().addShape({
+      type: 'bulb',
+      points: [{ x: 5.5, y: 5.5 }],
+      display: 'fill',
+      strokeWidth: 1
+    })
+    const fx2 = useStore.getState().chart.fixtures.find((f) => f.shapeId === id2)
+    expect(fx2!.start).toBe(39)
+  })
+  it('OFF keeps the existing behaviour: new shapes stay unpatched', () => {
+    useStore.setState({ stepPatch: false })
+    const id = useStore.getState().addShape({
+      type: 'line',
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 }
+      ]
+    })
+    expect(useStore.getState().chart.fixtures.find((f) => f.shapeId === id)).toBeUndefined()
+  })
+})
+
+describe('bulkPatch: 複数選択の一括変更', () => {
+  beforeEach(() => {
+    const c = seed()
+    const extra: Shape = {
+      id: 'bar2',
+      type: 'rect',
+      points: [
+        { x: 0, y: 0 },
+        { x: 5, y: 5 }
+      ],
+      display: 'stroke',
+      strokeWidth: 1
+    }
+    useStore.setState({
+      chart: { ...c, shapes: [...c.shapes, extra] },
+      selectedId: null,
+      selectedIds: [],
+      clipboard: null,
+      pasteArmed: false,
+      history: [],
+      future: [],
+      histTag: null,
+      histAt: 0
+    })
+  })
+  it('updates all selected fixtures, creates missing ones, leaves other fields alone', () => {
+    useStore.getState().bulkPatch(['bar1', 'bar2'], { universe: 7 })
+    const fxs = useStore.getState().chart.fixtures
+    const f1 = fxs.find((f) => f.shapeId === 'bar1')!
+    const f2 = fxs.find((f) => f.shapeId === 'bar2')!
+    expect(f1.universe).toBe(7)
+    expect(f1.start).toBe(33)
+    expect(f2.universe).toBe(7)
+    expect(f2.start).toBe(1)
+  })
+  it('is ONE undo step', () => {
+    useStore.getState().bulkPatch(['bar1', 'bar2'], { universe: 7 })
+    useStore.getState().undo()
+    const fxs = useStore.getState().chart.fixtures
+    expect(fxs.find((f) => f.shapeId === 'bar1')!.universe).toBe(2)
+    expect(fxs.find((f) => f.shapeId === 'bar2')).toBeUndefined()
+  })
+})

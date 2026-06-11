@@ -1,4 +1,4 @@
-import type { ChannelMode, Shape } from '../model/types'
+import type { ChannelMode, Fixture, Shape } from '../model/types'
 import { channelCount } from './channel-math'
 import { neonCharCount } from '../render/neon'
 import { festoonCount } from '../render/festoon'
@@ -41,4 +41,16 @@ export function addressAt(
     universe: universe + Math.floor(zeroBased / 512),
     start: (((zeroBased % 512) + 512) % 512) + 1
   }
+}
+
+/** First free address right AFTER a fixture's whole span — ステップアップモード:
+ *  draw, and the next fixture lands here automatically. Rolls over 512 into the
+ *  next universe like everything else. */
+export function nextAddressAfter(
+  fx: Pick<Fixture, 'universe' | 'start' | 'mode' | 'addressStep'>,
+  reps: number
+): Addr {
+  const last = addressAt(fx.universe, fx.start, fx.mode, fx.addressStep, Math.max(0, reps - 1))
+  const zero = last.universe * 512 + (last.start - 1) + channelCount(fx.mode)
+  return { universe: Math.floor(zero / 512), start: (zero % 512) + 1 }
 }
