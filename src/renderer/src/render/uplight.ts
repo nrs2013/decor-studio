@@ -127,7 +127,7 @@ function drawBeamCoreLocal(
   ctx.globalAlpha = 1
 }
 
-/** 看板を照らすビームを光マップへ（lighter合算前提）。hue/I は卓のRGB由来、
+/** 看板を照らすビームを光マップへ（screen合算＝リニア混色前提・照明屋さん判定）。hue/I は卓のRGB由来、
  *  pose は beam6 の Pan/Tilt/Zoom（3ch なら常にセンター）。 */
 export function drawWallBeamInto(
   ctx: CanvasRenderingContext2D,
