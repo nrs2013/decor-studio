@@ -7,6 +7,7 @@ import { NumberField } from '../ui/NumberField'
 import { shapeBounds, bulbDiameter } from './geometry'
 import { BULB_DEFAULT_STYLE } from '../render/bulb'
 import { NEON_FONTS, neonFont, neonSize, neonGlowAmount, neonCharCount } from '../render/neon'
+import { genStars, starsDensity, starsWhiteRatio, starsSize } from '../render/stars'
 
 /** Human-readable size of a shape: spans, dot counts, lengths — diagonals included. */
 function sizeText(shape: Shape): string {
@@ -16,6 +17,10 @@ function sizeText(shape: Shape): string {
   }
   if (shape.type === 'neon') {
     return `W ${Math.round(b.w)} × H ${Math.round(b.h)} px · ${neonCharCount(shape.text ?? '')} 管`
+  }
+  if (shape.type === 'stars') {
+    const f = genStars(shape)
+    return `W ${Math.round(b.w)} × H ${Math.round(b.h)} px · 白${f.white.length}+青${f.blue.length} 粒`
   }
   if (shape.type === 'freehand') {
     const single =
@@ -191,8 +196,52 @@ export function Inspector(): React.JSX.Element {
         </>
       )}
 
+      {/* stars: density / white-blue mix / dot size / reshuffle (colour & gauge come
+          from two desk channels — instance 0 = white sky, instance 1 = blue sky) */}
+      {shape.type === 'stars' && (
+        <>
+          <Field label="密度（スライダー：右でワサワサ・左でまばら）">
+            <NumberField
+              value={starsDensity(shape)}
+              min={0}
+              max={100}
+              onChange={(v) => updateShape(shape.id, { starDensity: v })}
+            />
+          </Field>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Field label="白の割合 (%)">
+              <NumberField
+                value={starsWhiteRatio(shape)}
+                min={0}
+                max={100}
+                onChange={(v) => updateShape(shape.id, { starWhiteRatio: v })}
+              />
+            </Field>
+            <Field label="粒の大きさ (px)">
+              <NumberField
+                value={starsSize(shape)}
+                min={0.5}
+                max={30}
+                step={0.5}
+                onChange={(v) => updateShape(shape.id, { starSize: v })}
+              />
+            </Field>
+          </div>
+          <Field label="配置">
+            <button
+              style={{ ...buttonStyle({}), width: '100%' }}
+              onClick={() =>
+                updateShape(shape.id, { starSeed: (Math.random() * 0xffffffff) >>> 0 })
+              }
+            >
+              シャッフル（散り方を変える）
+            </button>
+          </Field>
+        </>
+      )}
+
       {/* display mode */}
-      {!open && shape.type !== 'bulb' && shape.type !== 'neon' && (
+      {!open && shape.type !== 'bulb' && shape.type !== 'neon' && shape.type !== 'stars' && (
         <Field label="Display">
           <div style={{ display: 'flex', gap: 6 }}>
             {DISPLAY_MODES.map((m) => (
@@ -208,7 +257,7 @@ export function Inspector(): React.JSX.Element {
         </Field>
       )}
 
-      {shape.type !== 'bulb' && shape.type !== 'neon' && (
+      {shape.type !== 'bulb' && shape.type !== 'neon' && shape.type !== 'stars' && (
         <Field label="Width">
           <NumberField
             value={shape.strokeWidth}
@@ -219,8 +268,8 @@ export function Inspector(): React.JSX.Element {
         </Field>
       )}
 
-      {/* repeat / array (a neon sign IS its own array — one instance per character) */}
-      {shape.type !== 'neon' && (
+      {/* repeat / array (neon & stars ARE their own arrays — per character / per sky) */}
+      {shape.type !== 'neon' && shape.type !== 'stars' && (
         <div style={{ marginBottom: rowGap }}>
           <label style={fieldLabel}>Array{hasRepeat ? `  ×${shape.repeat!.count}` : ''}</label>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -252,7 +301,13 @@ export function Inspector(): React.JSX.Element {
       {!fixture ? (
         <button
           style={{ ...buttonStyle({}), width: '100%', marginTop: 8 }}
-          onClick={() => upsertFixture(shape.id, {})}
+          onClick={() =>
+            upsertFixture(
+              shape.id,
+              // a star field runs on two plain dimmer channels (White / Blue)
+              shape.type === 'stars' ? { mode: 'dim', fixedColor: [255, 255, 255] } : {}
+            )
+          }
         >
           + Patch
         </button>
@@ -302,12 +357,14 @@ export function Inspector(): React.JSX.Element {
             </Field>
           )}
 
-          {(hasRepeat || shape.type === 'neon') && (
+          {(hasRepeat || shape.type === 'neon' || shape.type === 'stars') && (
             <Field
               label={
                 shape.type === 'neon'
                   ? `文字間隔 ch（0=一斉 / 既定 ${channelCount(fixture.mode)}）`
-                  : `Offset (default ${channelCount(fixture.mode)})`
+                  : shape.type === 'stars'
+                    ? `白→青 間隔 ch（既定 ${channelCount(fixture.mode)}）`
+                    : `Offset (default ${channelCount(fixture.mode)})`
               }
             >
               <NumberField
@@ -329,6 +386,16 @@ export function Inspector(): React.JSX.Element {
             }}
           >
             {(() => {
+              if (shape.type === 'stars') {
+                const blue = addressAt(
+                  fixture.universe,
+                  fixture.start,
+                  fixture.mode,
+                  fixture.addressStep,
+                  1
+                )
+                return `White ${formatDmx(fixture.universe, fixture.start)} · Blue ${formatDmx(blue.universe, blue.start)}`
+              }
               const reps = repeatCount(shape)
               if (reps <= 1)
                 return `${formatDmx(fixture.universe, fixture.start)} – ${formatDmx(fixture.universe, fixture.start + channelCount(fixture.mode) - 1)}`

@@ -11,6 +11,7 @@ import {
 } from '../editor/geometry'
 import { drawBulbLit, BULB_DEFAULT_STYLE } from '../render/bulb'
 import { drawNeonGlyphLit } from '../render/neon'
+import { drawStarsLit } from '../render/stars'
 
 const ZEROS = new Uint8Array(512)
 
@@ -27,6 +28,8 @@ const ZEROS = new Uint8Array(512)
 export class OutputRenderer {
   private ctx: CanvasRenderingContext2D
   private bloom?: HTMLCanvasElement
+  /** Frame timestamp (ms) — drives the star fields' subtle twinkle. */
+  private frameTime = 0
 
   constructor(private canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -43,6 +46,7 @@ export class OutputRenderer {
     const { w, h } = chart.canvas
     if (this.canvas.width !== w) this.canvas.width = w
     if (this.canvas.height !== h) this.canvas.height = h
+    this.frameTime = Date.now()
     const ctx = this.ctx
 
     // transparent-black background (0,0,0,0): invisible on Add AND on Alpha layers
@@ -129,6 +133,13 @@ export class OutputRenderer {
     // per-character chase falls out of the ordinary repeat addressing
     if (shape.type === 'neon') {
       drawNeonGlyphLit(ctx, shape, rgb, rep)
+      ctx.restore()
+      return
+    }
+    // star fields: instance 0 = the white sky, instance 1 = the blue sky — two desk
+    // faders run the whole curtain; the channel level IS the population's gauge
+    if (shape.type === 'stars') {
+      drawStarsLit(ctx, shape, rgb, rep, this.frameTime)
       ctx.restore()
       return
     }

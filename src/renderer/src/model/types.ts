@@ -9,6 +9,7 @@ export type ShapeType =
   | 'polygon'
   | 'bulb'
   | 'neon'
+  | 'stars'
 export type DisplayMode = 'stroke' | 'fill' | 'both'
 export type ChannelMode = 'rgb' | 'rgbdim' | 'dim' | 'rgbw'
 export type BulbStyle = 'clear' | 'frost'
@@ -44,6 +45,15 @@ export interface Shape {
   fontSize?: number
   /** Neon only: glow reach 0–100 (halo around the tubes; のむさんの「光りすぎ防止」ツマミ). */
   neonGlow?: number
+  /** Stars only: density dial 0–100 — more = a thick sky, less = sparse and airy.
+   *  points[0]/[1] are the field's corners (a rect the sky fills). */
+  starDensity?: number
+  /** Stars only: white share 0–100% (the rest is blue). */
+  starWhiteRatio?: number
+  /** Stars only: hero-dot size in canvas px (most stars render smaller). */
+  starSize?: number
+  /** Stars only: layout seed — locked so a saved chart reopens with the same sky. */
+  starSeed?: number
 }
 
 export interface Fixture {

@@ -11,9 +11,11 @@ export interface Addr {
 export const formatDmx = (universe: number, address: number): string => `${universe}.${address}`
 
 /** How many addressed instances a shape expands to: repeat arrays = count,
- *  neon signs = one per non-space character, otherwise 1. */
+ *  neon signs = one per non-space character, star fields = 2 (white sky / blue sky),
+ *  otherwise 1. */
 export function repeatCount(shape: Pick<Shape, 'repeat' | 'type' | 'text'>): number {
   if (shape.type === 'neon') return neonCharCount(shape.text ?? '')
+  if (shape.type === 'stars') return 2
   const c = shape.repeat?.count ?? 1
   return c > 1 ? c : 1
 }

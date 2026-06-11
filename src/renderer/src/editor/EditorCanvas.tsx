@@ -41,6 +41,12 @@ import {
   NEON_DEFAULT_SIZE,
   NEON_DEFAULT_GLOW
 } from '../render/neon'
+import {
+  drawStarsSchematic,
+  STARS_DEFAULT_DENSITY,
+  STARS_DEFAULT_WHITE_RATIO,
+  STARS_DEFAULT_SIZE
+} from '../render/stars'
 
 const cellOfPt = (p: Point): Point => ({ x: Math.floor(p.x), y: Math.floor(p.y) })
 
@@ -71,7 +77,7 @@ interface View {
 const isOpen = (t: Shape['type']): boolean => t === 'line' || t === 'polyline' || t === 'freehand'
 
 /** Two-corner box shapes: resized by dragging a bounding-box corner. */
-const BOXY = new Set<Shape['type']>(['rect', 'ellipse', 'triangle', 'star', 'polygon'])
+const BOXY = new Set<Shape['type']>(['rect', 'ellipse', 'triangle', 'star', 'polygon', 'stars'])
 
 /** One pointer gesture on the canvas: move the whole shape, drag one vertex
  *  (line/polyline), drag a box corner/edge against its fixed opposite side, or pull
@@ -225,6 +231,11 @@ function drawShapeInto(
   // Live / Syphon output, like the bulb)
   if (shape.type === 'neon') {
     drawNeonSchematic(ctx, shape, stroke, fill, boost)
+    return
+  }
+  // star fields: dashed frame + the cold dots (same sky the output will light)
+  if (shape.type === 'stars') {
+    drawStarsSchematic(ctx, shape, stroke, fill, boost)
     return
   }
   const open = isOpen(shape.type)
@@ -1707,7 +1718,7 @@ export function EditorCanvas(): React.JSX.Element {
   }
   const onDrop = (e: React.DragEvent<HTMLCanvasElement>): void => {
     const part = e.dataTransfer.getData('application/x-decor-part')
-    if (part !== 'bulb' && part !== 'neon') return
+    if (part !== 'bulb' && part !== 'neon' && part !== 'stars') return
     e.preventDefault()
     const cell = toCell(e.clientX, e.clientY)
     let center = { x: cell.x + 0.5, y: cell.y + 0.5 }
@@ -1735,7 +1746,7 @@ export function EditorCanvas(): React.JSX.Element {
     useStore.getState().setTool('select')
     if (part === 'bulb') {
       addShape({ type: 'bulb', points: [center], display: 'fill', strokeWidth: 1 })
-    } else {
+    } else if (part === 'neon') {
       addShape({
         type: 'neon',
         points: [center],
@@ -1745,6 +1756,22 @@ export function EditorCanvas(): React.JSX.Element {
         fontId: NEON_DEFAULT_FONT,
         fontSize: NEON_DEFAULT_SIZE,
         neonGlow: NEON_DEFAULT_GLOW
+      })
+    } else {
+      // star field: a corner-box part — drops as a 120×70 sky centred on the cell,
+      // then the ordinary corner/edge handles stretch it over the LED area
+      addShape({
+        type: 'stars',
+        points: [
+          { x: center.x - 60, y: center.y - 35 },
+          { x: center.x + 60, y: center.y + 35 }
+        ],
+        display: 'fill',
+        strokeWidth: 1,
+        starDensity: STARS_DEFAULT_DENSITY,
+        starWhiteRatio: STARS_DEFAULT_WHITE_RATIO,
+        starSize: STARS_DEFAULT_SIZE,
+        starSeed: (Math.random() * 0xffffffff) >>> 0
       })
     }
   }

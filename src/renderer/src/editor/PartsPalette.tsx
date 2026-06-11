@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { C, F } from '../ui/tokens'
 import { drawBulbGlass, drawBulbLit, BULB_DEFAULT_DIAMETER, type RGB } from '../render/bulb'
 import { drawNeonGlyphLit, clearNeonLayoutCache } from '../render/neon'
+import { drawStarsLit } from '../render/stars'
 import type { Shape } from '../model/types'
 
 /** Live-rendered thumbnail: the actual bulb renderer at a thumbnail-friendly size,
@@ -80,8 +81,47 @@ function NeonThumb({ w = 74, h = 46 }: { w?: number; h?: number }): React.JSX.El
   )
 }
 
+/** Live-rendered thumbnail: the real star-field renderer — the white sky and the
+ *  blue sky both at full, exactly what the two desk faders bring up. */
+function StarsThumb({ w = 74, h = 46 }: { w?: number; h?: number }): React.JSX.Element {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const cv = ref.current
+    if (!cv) return
+    const ctx = cv.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, w, h)
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, w, h)
+    const shape = {
+      id: 'stars-thumb',
+      type: 'stars',
+      points: [
+        { x: 3, y: 3 },
+        { x: w - 3, y: h - 3 }
+      ],
+      display: 'fill',
+      strokeWidth: 1,
+      starDensity: 85,
+      starWhiteRatio: 55,
+      starSize: 2.4,
+      starSeed: 7
+    } as Shape
+    drawStarsLit(ctx, shape, [235, 235, 235], 0)
+    drawStarsLit(ctx, shape, [255, 255, 255], 1)
+  }, [w, h])
+  return (
+    <canvas
+      ref={ref}
+      width={w}
+      height={h}
+      style={{ display: 'block', borderRadius: 4, pointerEvents: 'none' }}
+    />
+  )
+}
+
 /** アイコン棚 — drag a part onto the chart to place it (part centre = the dropped
- *  cell). Residents: the ball bulb and the neon sign. Future parts join this grid. */
+ *  cell). Residents: the ball bulb, the neon sign and the star field. */
 export function PartsPalette(): React.JSX.Element {
   return (
     <div style={wrapStyle}>
@@ -114,6 +154,19 @@ export function PartsPalette(): React.JSX.Element {
           <NeonThumb />
           <div style={{ fontSize: 11, color: C.text, fontFamily: F.ui, marginTop: 5 }}>ネオン管</div>
           <div style={{ fontSize: 9, color: C.hint, fontFamily: F.mono }}>TEXT</div>
+        </div>
+        <div
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('application/x-decor-part', 'stars')
+            e.dataTransfer.effectAllowed = 'copy'
+          }}
+          title="ドラッグして置き、四隅で広げる（白ch+青chの2番地・密度はInspector）"
+          style={cardStyle}
+        >
+          <StarsThumb />
+          <div style={{ fontSize: 11, color: C.text, fontFamily: F.ui, marginTop: 5 }}>星球</div>
+          <div style={{ fontSize: 9, color: C.hint, fontFamily: F.mono }}>W+B 2ch</div>
         </div>
       </div>
       <div style={{ fontSize: 10, color: C.faint, fontFamily: F.ui, marginTop: 8, lineHeight: 1.5 }}>

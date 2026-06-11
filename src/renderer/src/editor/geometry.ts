@@ -98,6 +98,7 @@ export function shapeBounds(shape: Shape): Bounds {
     case 'triangle':
     case 'star':
     case 'polygon':
+    case 'stars':
       // 'polygon' from the tool uses two-corner box; explicit polylines use their points.
       return cornerBounds(shape.points[0], shape.points[shape.points.length - 1])
     default:
@@ -140,7 +141,8 @@ export function traceShape(ctx: CanvasRenderingContext2D, shape: Shape): void {
       ctx.moveTo(p[0].x, p[0].y)
       for (let i = 1; i < p.length; i++) ctx.lineTo(p[i].x, p[i].y)
       break
-    case 'rect': {
+    case 'rect':
+    case 'stars': {
       const b = cornerBounds(p[0], p[p.length - 1])
       ctx.rect(b.x, b.y, b.w, b.h)
       break
@@ -276,7 +278,8 @@ export function pasteDelta(shapes: Shape[], at: Point): Point {
     maxY = Math.max(maxY, b.y + b.h)
   }
   const allBulbs =
-    shapes.length > 0 && shapes.every((sh) => sh.type === 'bulb' || sh.type === 'neon')
+    shapes.length > 0 &&
+    shapes.every((sh) => sh.type === 'bulb' || sh.type === 'neon' || sh.type === 'stars')
   if (allBulbs) {
     return {
       x: Math.round(at.x - (minX + maxX) / 2),

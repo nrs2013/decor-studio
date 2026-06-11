@@ -102,11 +102,17 @@ export function patchRows(chart: Chart): MvrFixtureRow[] {
         reps > 1
           ? addressAt(fx.universe, fx.start, fx.mode, fx.addressStep, i)
           : { universe: fx.universe, start: fx.start }
-      // neon: each tube (character) lands at its real glyph centre on the chart
+      // neon: each tube (character) lands at its real glyph centre on the chart;
+      // stars: both skies (White/Blue) sit at the field's centre
       const pos =
         sh.type === 'neon'
           ? neonGlyphCenter(sh, i)
-          : { x: p0.x + (sh.repeat?.dx ?? 0) * i, y: p0.y + (sh.repeat?.dy ?? 0) * i }
+          : sh.type === 'stars'
+            ? {
+                x: (p0.x + (sh.points[sh.points.length - 1]?.x ?? p0.x)) / 2,
+                y: (p0.y + (sh.points[sh.points.length - 1]?.y ?? p0.y)) / 2
+              }
+            : { x: p0.x + (sh.repeat?.dx ?? 0) * i, y: p0.y + (sh.repeat?.dy ?? 0) * i }
       rows.push({
         name: reps > 1 ? `${sh.id.slice(-6)} #${i + 1}` : sh.id.slice(-6),
         mode: fx.mode,
