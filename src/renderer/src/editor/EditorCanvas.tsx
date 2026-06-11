@@ -21,7 +21,16 @@ import {
   pasteDelta,
   type Bounds
 } from './geometry'
-import { buildCandidates, salientOf, snap1D, snapMoveDelta, softAxis, type SnapCand } from './snapping'
+import {
+  buildCandidates,
+  centerCandidates,
+  salientOf,
+  salientOfGroup,
+  snap1D,
+  snapMoveDelta,
+  softAxis,
+  type SnapCand
+} from './snapping'
 import { cleanPaintStroke, regenChain } from './stroke-fit'
 import { findDrawableRegions, type Region } from './regions'
 import {
@@ -258,6 +267,16 @@ export function EditorCanvas(): React.JSX.Element {
     () => (mask ? findDrawableRegions(mask.bitmap, mask.w, mask.h) : []),
     [mask]
   )
+  /** Island centres + the canvas centre: extra alignment-snap targets so parts land
+   *  dead-centre in their LED panel (のむさん要望 2026-06-11). */
+  const centerCand = useMemo<SnapCand>(
+    () => centerCandidates(regions, chart.canvas),
+    [regions, chart.canvas]
+  )
+  const withCenters = (c: SnapCand): SnapCand => ({
+    xs: [...c.xs, ...centerCand.xs],
+    ys: [...c.ys, ...centerCand.ys]
+  })
 
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -271,6 +290,10 @@ export function EditorCanvas(): React.JSX.Element {
   const boostRef = useRef(1) // display-only min stroke width (recomputed per zoom bucket)
 
   const [view, setView] = useState<View>({ scale: 0.4, tx: 40, ty: 40 })
+  // test/debug hook (the browser preview converts chart coords → client coords for drags)
+  useEffect(() => {
+    ;(window as unknown as { __decorView?: View }).__decorView = view
+  }, [view])
   const viewRef = useRef(view)
   viewRef.current = view
   const [draft, setDraftState] = useState<{ type: DrawType; points: Point[] } | null>(null)
@@ -638,6 +661,17 @@ export function EditorCanvas(): React.JSX.Element {
         const sw2 = rg.w * v.scale
         const sh2 = rg.h * v.scale
         if (sx0 + sw2 < 0 || sy0 + sh2 < 0 || sx0 > cw || sy0 > ch) continue // offscreen
+        // centre tick (＋): the spot parts snap onto
+        if (sw2 >= 24 && sh2 >= 24) {
+          const ccx = sx0 + sw2 / 2
+          const ccy = sy0 + sh2 / 2
+          ctx.beginPath()
+          ctx.moveTo(ccx - 5, ccy)
+          ctx.lineTo(ccx + 5, ccy)
+          ctx.moveTo(ccx, ccy - 5)
+          ctx.lineTo(ccx, ccy + 5)
+          ctx.stroke()
+        }
         if (sw2 >= 46) {
           const yLine = sy0 + Math.min(12, sh2 * 0.3)
           arrow(sx0 + 1, yLine, sx0 + sw2 - 1, yLine)
@@ -1007,8 +1041,12 @@ export function EditorCanvas(): React.JSX.Element {
       sy: raw.y,
       origs: shs.map((s) => s.points.map((pp) => ({ ...pp }))),
       forceSnap,
-      cand: single ? buildCandidates(chart.shapes, single.id) : undefined,
-      sal: single ? salientOf(single) : undefined
+      // groups align as one body (union bbox + centre); island/canvas centres are
+      // always on the candidate list so parts can click onto panel middles
+      cand: withCenters(
+        buildCandidates(chart.shapes, single ? single.id : new Set(shs.map((s) => s.id)))
+      ),
+      sal: single ? salientOf(single) : salientOfGroup(shs)
     }
     return true
   }
@@ -1057,7 +1095,7 @@ export function EditorCanvas(): React.JSX.Element {
         if (hd) {
           // chainvert drags record history via updateShape (coalesced); others here
           if (hd.kind !== 'chainvert') useStore.getState().beginHistory()
-          const cand = buildCandidates(chart.shapes, sel.id)
+          const cand = withCenters(buildCandidates(chart.shapes, sel.id))
           if (hd.kind === 'chainvert') {
             interaction.current = { kind: 'chainvert', id: sel.id, idx: hd.idx, cand }
           } else if (hd.kind === 'vertex') {
@@ -1672,7 +1710,24 @@ export function EditorCanvas(): React.JSX.Element {
     if (part !== 'bulb' && part !== 'neon') return
     e.preventDefault()
     const cell = toCell(e.clientX, e.clientY)
-    const center = { x: cell.x + 0.5, y: cell.y + 0.5 }
+    let center = { x: cell.x + 0.5, y: cell.y + 0.5 }
+    // dropped parts click onto a nearby island / canvas centre (Snap ON のとき)
+    if (useStore.getState().snapToPixel) {
+      const tol = Math.max(3, 8 / viewRef.current.scale)
+      const nearest = (v: number, cands: number[]): number => {
+        let best = v
+        let bd = tol
+        for (const c of cands) {
+          const d = Math.abs(c - v)
+          if (d <= bd) {
+            bd = d
+            best = c
+          }
+        }
+        return best
+      }
+      center = { x: nearest(center.x, centerCand.xs), y: nearest(center.y, centerCand.ys) }
+    }
     if (mask && !isDrawable(center)) {
       showBlocked()
       return

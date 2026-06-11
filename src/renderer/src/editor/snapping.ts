@@ -7,11 +7,13 @@ export interface SnapCand {
   ys: number[]
 }
 
-export function buildCandidates(shapes: Shape[], excludeId: string | null): SnapCand {
+export function buildCandidates(shapes: Shape[], exclude: string | null | Set<string>): SnapCand {
   const xs: number[] = []
   const ys: number[] = []
+  const skip = (id: string): boolean =>
+    typeof exclude === 'string' ? id === exclude : exclude ? exclude.has(id) : false
   for (const sh of shapes) {
-    if (sh.id === excludeId) continue
+    if (skip(sh.id)) continue
     const b = shapeArrayBounds(sh)
     xs.push(b.x, b.x + b.w)
     ys.push(b.y, b.y + b.h)
@@ -27,11 +29,17 @@ export function buildCandidates(shapes: Shape[], excludeId: string | null): Snap
   return { xs, ys }
 }
 
-/** Salient coordinates of the shape being moved (tested against the candidates). */
+/** Salient coordinates of the shape being moved (tested against the candidates).
+ *  Includes the bbox CENTRE so a part can land dead-centre on a cutout island. */
 export function salientOf(sh: Shape): { xs: number[]; ys: number[] } {
   const b = shapeArrayBounds(sh)
-  const xs = [b.x, b.x + b.w]
-  const ys = [b.y, b.y + b.h]
+  // parts (bulb / neon) are anchored bodies: the CENTRE is their only salient — the
+  // edge of a tiny glass or a text box must not out-compete the centre for island snaps
+  if (sh.type === 'bulb' || sh.type === 'neon') {
+    return { xs: [b.x + b.w / 2], ys: [b.y + b.h / 2] }
+  }
+  const xs = [b.x, b.x + b.w, b.x + b.w / 2]
+  const ys = [b.y, b.y + b.h, b.y + b.h / 2]
   if (sh.type === 'line' || sh.type === 'polyline' || sh.type === 'freehand') {
     const a = sh.points[0]
     const z = sh.points[sh.points.length - 1]
@@ -39,6 +47,43 @@ export function salientOf(sh: Shape): { xs: number[]; ys: number[] } {
       xs.push(a.x, z.x)
       ys.push(a.y, z.y)
     }
+  }
+  return { xs, ys }
+}
+
+/** Salient coordinates of a multi-selection: the GROUP's union bbox edges + centre
+ *  (a flock of bulbs centres onto an island as one body). */
+export function salientOfGroup(shapes: Shape[]): { xs: number[]; ys: number[] } {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const sh of shapes) {
+    const b = shapeArrayBounds(sh)
+    minX = Math.min(minX, b.x)
+    minY = Math.min(minY, b.y)
+    maxX = Math.max(maxX, b.x + b.w)
+    maxY = Math.max(maxY, b.y + b.h)
+  }
+  if (!Number.isFinite(minX)) return { xs: [], ys: [] }
+  return {
+    xs: [minX, maxX, (minX + maxX) / 2],
+    ys: [minY, maxY, (minY + maxY) / 2]
+  }
+}
+
+/** Snap candidates at the CENTRE of every chart cutout island + the canvas centre —
+ *  のむさん: a neon sign (or a flock of bulbs) should click onto the middle of the
+ *  LED panel it lives in. */
+export function centerCandidates(
+  regions: { x: number; y: number; w: number; h: number }[],
+  canvas: { w: number; h: number }
+): SnapCand {
+  const xs = [canvas.w / 2]
+  const ys = [canvas.h / 2]
+  for (const r of regions) {
+    xs.push(r.x + r.w / 2)
+    ys.push(r.y + r.h / 2)
   }
   return { xs, ys }
 }
