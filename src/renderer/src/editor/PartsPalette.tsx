@@ -3,12 +3,14 @@ import { C, F } from '../ui/tokens'
 import { drawBulbGlass, drawBulbLit, BULB_DEFAULT_DIAMETER, type RGB } from '../render/bulb'
 import { drawNeonGlyphLit, clearNeonLayoutCache } from '../render/neon'
 import { drawStarsLit } from '../render/stars'
-import { drawFestoonBulbLit, festoonSamples, festoonCount } from '../render/festoon'
+import { drawFestoonBulbLit, drawFestoonWireLit, festoonCount } from '../render/festoon'
 import {
   drawParLit,
   drawBlinderCellLit,
   drawPattLit,
-  drawPixelPattCellLit
+  drawPixelPattCellLit,
+  drawPixelPattFrame,
+  drawBlinderHousing
 } from '../render/fixtures'
 import type { Shape } from '../model/types'
 
@@ -152,14 +154,9 @@ function FestoonThumb({ w = 74, h = 46 }: { w?: number; h?: number }): React.JSX
       diameter: 5,
       neonGlow: 55
     } as Shape
-    const pts = festoonSamples(shape, 48)
-    ctx.strokeStyle = 'rgba(140,120,90,0.5)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(pts[0].x, pts[0].y)
-    for (const p of pts) ctx.lineTo(p.x, p.y)
-    ctx.stroke()
     const n = festoonCount(shape)
+    const rgbs = new Array(n).fill([255, 170, 80] as [number, number, number])
+    drawFestoonWireLit(ctx, shape, rgbs)
     for (let i = 0; i < n; i++) drawFestoonBulbLit(ctx, shape, [255, 170, 80], i)
   }, [w, h])
   return (
@@ -214,6 +211,7 @@ const paintBlinder = (ctx: CanvasRenderingContext2D): void => {
     strokeWidth: 1,
     diameter: 20
   } as Shape
+  drawBlinderHousing(ctx, sh, new Array(8).fill(WARM))
   for (let i = 0; i < 8; i++) drawBlinderCellLit(ctx, sh, WARM, i)
 }
 const paintPatt = (ctx: CanvasRenderingContext2D): void => drawPattLit(ctx, 37, 23, 42, WARM)
@@ -226,6 +224,7 @@ const paintPixelPatt = (ctx: CanvasRenderingContext2D): void => {
     strokeWidth: 1,
     diameter: 42
   } as Shape
+  drawPixelPattFrame(ctx, sh, new Array(7).fill(WARM))
   for (let i = 0; i < 7; i++) drawPixelPattCellLit(ctx, sh, WARM, i)
 }
 

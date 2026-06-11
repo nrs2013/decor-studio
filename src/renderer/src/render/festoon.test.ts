@@ -6,7 +6,8 @@ import {
   festoonCount,
   festoonLength,
   festoonSag,
-  festoonGlowScale
+  festoonGlowScale,
+  wireWash
 } from './festoon'
 import { repeatCount } from '../dmx/address'
 
@@ -25,6 +26,22 @@ const string = (over: Partial<Shape> = {}): Shape =>
     diameter: 4,
     ...over
   }) as Shape
+
+describe('wireWash: the lit wire fades with distance (のむさん 2026-06-11)', () => {
+  it('brightest at the socket, completely gone at reach and beyond', () => {
+    expect(wireWash(0, 60)).toBe(1)
+    expect(wireWash(60, 60)).toBe(0)
+    expect(wireWash(120, 60)).toBe(0)
+  })
+  it('fades monotonically along the wire — the gradient into the dark', () => {
+    let prev = wireWash(0, 60)
+    for (const d of [10, 20, 30, 40, 50]) {
+      const v = wireWash(d, 60)
+      expect(v).toBeLessThan(prev)
+      prev = v
+    }
+  })
+})
 
 describe('festoon curve: the sag', () => {
   it('sag 0 = a dead-straight wire (every point on the chord)', () => {

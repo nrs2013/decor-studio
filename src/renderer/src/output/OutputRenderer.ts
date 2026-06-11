@@ -12,12 +12,14 @@ import {
 import { drawBulbLit, BULB_DEFAULT_STYLE } from '../render/bulb'
 import { drawNeonGlyphLit } from '../render/neon'
 import { drawStarsLit } from '../render/stars'
-import { drawFestoonBulbLit } from '../render/festoon'
+import { drawFestoonBulbLit, drawFestoonWireLit } from '../render/festoon'
 import {
   drawParLit,
   drawBlinderCellLit,
+  drawBlinderHousing,
   drawPattLit,
   drawPixelPattCellLit,
+  drawPixelPattFrame,
   parDiameter,
   pattDiameter
 } from '../render/fixtures'
@@ -78,21 +80,31 @@ export class OutputRenderer {
       const dx = shape.repeat?.dx ?? 0
       const dy = shape.repeat?.dy ?? 0
       const man = manual?.[fx.id] // a manual override lights the whole array uniformly
+      const resolve = (i: number): RGB => {
+        if (man) return man
+        const a =
+          reps > 1
+            ? addressAt(fx.universe, fx.start, fx.mode, fx.addressStep, i)
+            : { universe: fx.universe, start: fx.start }
+        return fixtureColor(
+          { ...fx, universe: a.universe, start: a.start },
+          dmxByUniverse[a.universe] ?? ZEROS,
+          gamma
+        )
+      }
+      // unit-level pass: the Pixel PAT skeleton and the festoon wire are lit by the
+      // REFLECTION of all their cells at once, so they draw once per unit with every
+      // colour known (all-off units draw nothing — the dark stays dark)
+      let unitRgbs: RGB[] | null = null
+      if (shape.type === 'pixelpatt' || shape.type === 'festoon' || shape.type === 'blinder') {
+        unitRgbs = []
+        for (let i = 0; i < reps; i++) unitRgbs.push(resolve(i))
+        if (shape.type === 'pixelpatt') drawPixelPattFrame(this.ctx, shape, unitRgbs)
+        else if (shape.type === 'festoon') drawFestoonWireLit(this.ctx, shape, unitRgbs)
+        else drawBlinderHousing(this.ctx, shape, unitRgbs)
+      }
       for (let i = 0; i < reps; i++) {
-        let rgb: RGB
-        if (man) {
-          rgb = man
-        } else {
-          const a =
-            reps > 1
-              ? addressAt(fx.universe, fx.start, fx.mode, fx.addressStep, i)
-              : { universe: fx.universe, start: fx.start }
-          rgb = fixtureColor(
-            { ...fx, universe: a.universe, start: a.start },
-            dmxByUniverse[a.universe] ?? ZEROS,
-            gamma
-          )
-        }
+        const rgb = unitRgbs ? unitRgbs[i] : resolve(i)
         if (rgb[0] === 0 && rgb[1] === 0 && rgb[2] === 0) continue // off -> stays transparent
         this.drawShape(shape, rgb, dx * i, dy * i, i)
       }

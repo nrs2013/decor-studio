@@ -1,5 +1,6 @@
 import type { Point, Shape } from '../model/types'
-import { drawBulbLit, BULB_DEFAULT_STYLE, type RGB } from './bulb'
+import { drawBulbLit, bulbHueIntensity, BULB_DEFAULT_STYLE, type RGB } from './bulb'
+import { reflectGain } from './fixtures'
 
 export const FESTOON_DEFAULT_SAG = 12 // % of the span length
 export const FESTOON_DEFAULT_PITCH = 30 // px along the wire
@@ -116,6 +117,78 @@ export function drawFestoonSchematic(
     ctx.beginPath()
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
     ctx.fill()
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+const WIRE_STEEL: RGB = [132, 134, 142]
+const wireMix = (a: RGB, b: RGB, t: number): RGB => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t
+]
+
+/** Arc-distance falloff of one lit bulb's wash along the wire (0..1). Exported for
+ *  tests: the wire must be brightest at the socket and gone past `reach`. */
+export function wireWash(arcDist: number, reach: number): number {
+  if (arcDist >= reach || reach <= 0) return 0
+  const f = 1 - arcDist / reach
+  return f * f
+}
+
+/** Lit wire (additive, drawn once per string): the cord is visible ONLY where a lit
+ *  bulb washes it — brightest at the socket, fading along the wire with distance,
+ *  melted into the dark beyond reach (のむさん 2026-06-11). Unlit stretches and
+ *  all-off strings draw nothing at all. */
+export function drawFestoonWireLit(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  rgbs: RGB[]
+): void {
+  const bulbs = festoonBulbs(shape)
+  if (bulbs.length < 1) return
+  const pts = festoonSamples(shape, 240)
+  const cum: number[] = [0]
+  for (let i = 1; i < pts.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y))
+  }
+  const L = cum[cum.length - 1]
+  if (L <= 0) return
+  const denom = Math.max(1, bulbs.length - 1)
+  const lit: { arc: number; hue: RGB; I: number }[] = []
+  for (let k = 0; k < bulbs.length; k++) {
+    const { hue, intensity } = bulbHueIntensity(rgbs[k] ?? ([0, 0, 0] as RGB))
+    if (intensity > 0.004) lit.push({ arc: (k / denom) * L, hue, I: intensity })
+  }
+  if (lit.length === 0) return
+  const reach = Math.max(festoonPitch(shape) * 1.5, festoonDiameter(shape) * 6)
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  ctx.lineCap = 'round'
+  ctx.lineWidth = 1
+  for (let i = 0; i < pts.length - 1; i++) {
+    const mid = (cum[i] + cum[i + 1]) / 2
+    let a = 0
+    let r = 0
+    let g = 0
+    let b = 0
+    for (const lb of lit) {
+      // a full-blast bulb GLARES its own cord away (reflectGain peaks mid-gauge)
+      const w = reflectGain(lb.I) * wireWash(Math.abs(mid - lb.arc), reach)
+      if (w <= 0) continue
+      a += w
+      r += lb.hue[0] * w
+      g += lb.hue[1] * w
+      b += lb.hue[2] * w
+    }
+    if (a <= 0.012) continue
+    const hue: RGB = [r / a, g / a, b / a]
+    const col = wireMix(WIRE_STEEL, hue, 0.45)
+    ctx.strokeStyle = `rgba(${col[0] | 0},${col[1] | 0},${col[2] | 0},${Math.min(1, 0.34 * Math.min(1, a)).toFixed(3)})`
+    ctx.beginPath()
+    ctx.moveTo(pts[i].x, pts[i].y)
+    ctx.lineTo(pts[i + 1].x, pts[i + 1].y)
     ctx.stroke()
   }
   ctx.restore()

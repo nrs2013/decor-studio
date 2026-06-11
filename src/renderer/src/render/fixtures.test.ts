@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest'
 import type { Shape } from '../model/types'
 import {
   blinderCells,
+  blinderLensR,
+  blinderRingR,
   pixelPattCells,
+  pixelPattCellDiameter,
+  pixelPattFrameRadius,
   blinderWidth,
   parDiameter,
   pattDiameter,
+  reflectGain,
   PAR_DEFAULT_DIAMETER,
   BLINDER_DEFAULT_WIDTH,
   PATT_DEFAULT_DIAMETER
@@ -63,6 +68,21 @@ describe('stage fixture addressing & defaults', () => {
   })
 })
 
+describe('blinder lens & the glare rule (のむさん確定 2026-06-11)', () => {
+  it('lens aperture = 55% of the pitch and the chrome rings never overlap', () => {
+    const b = blinder()
+    const pitch = blinderWidth(b) / 2
+    expect(blinderLensR(b) * 2).toBeCloseTo(pitch * 0.55)
+    expect(blinderRingR(b) * 2).toBeLessThan(pitch)
+  })
+  it('reflectGain: structure peaks mid-gauge, glare swallows it at full', () => {
+    expect(reflectGain(0)).toBe(0)
+    expect(reflectGain(0.6)).toBeCloseTo(1)
+    expect(reflectGain(1)).toBeLessThan(0.2)
+    expect(reflectGain(0.6)).toBeGreaterThan(reflectGain(1))
+  })
+})
+
 describe('pixelPattCells: the 7-cell hex unit', () => {
   const pp = (over: Partial<Shape> = {}): Shape =>
     ({
@@ -89,5 +109,14 @@ describe('pixelPattCells: the 7-cell hex unit', () => {
   })
   it('is its own 7-instance array', () => {
     expect(repeatCount(pp())).toBe(7)
+  })
+  it('aperture = 55% of the cell spacing (のむさん fixed on the v10 mock, 2026-06-11)', () => {
+    // D=90 → spacing 30 → aperture 16.5: the skeleton must show between the bezels
+    expect(pixelPattCellDiameter(pp())).toBeCloseTo(16.5)
+  })
+  it('hex band vertices sit AT the cells, between the ring and the unit edge', () => {
+    const r = pixelPattFrameRadius(pp())
+    expect(r).toBeGreaterThan(30) // outside the cell centres
+    expect(r).toBeLessThan(45) // inside the unit half-width
   })
 })
