@@ -301,3 +301,27 @@ describe('duplicate run (cmd-D rhythm)', () => {
     expect(third.points[0]).toEqual({ x: 70.5, y: 10.5 })
   })
 })
+
+describe('setManualMany (Quick Light)', () => {
+  beforeEach(() => {
+    useStore.setState({
+      chart: seed(),
+      manualMode: false,
+      manualByFixture: {},
+      history: [],
+      future: []
+    })
+  })
+  it('paints all given fixtures one colour and switches to manual', () => {
+    useStore.getState().setManualMany(['fx1', 'fx9'], [255, 96, 0])
+    const st = useStore.getState()
+    expect(st.manualMode).toBe(true)
+    expect(st.manualByFixture['fx1']).toEqual([255, 96, 0])
+    expect(st.manualByFixture['fx9']).toEqual([255, 96, 0])
+  })
+  it('leaves other fixtures untouched', () => {
+    useStore.getState().setManualColor('fxKeep', [1, 2, 3])
+    useStore.getState().setManualMany(['fx1'], [0, 0, 0])
+    expect(useStore.getState().manualByFixture['fxKeep']).toEqual([1, 2, 3])
+  })
+})

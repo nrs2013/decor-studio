@@ -141,6 +141,9 @@ interface AppState {
   setManualMode: (on: boolean) => void
   setManualColor: (fixtureId: string, rgb: [number, number, number]) => void
   setManualAll: (rgb: [number, number, number] | null) => void
+  /** Quick Light: paint several fixtures one colour in a single update (and switch
+   *  to manual so it shows immediately) — the no-console "splash a colour" button. */
+  setManualMany: (fixtureIds: string[], rgb: [number, number, number]) => void
   setSnap: (on: boolean) => void
   setUnderlayMask: (patch: { enabled?: boolean; invert?: boolean }) => void
   setMaskData: (m: MaskData | null) => void
@@ -643,6 +646,12 @@ export const useStore = create<AppState>()((set, get) => ({
   setManualMode: (on) => set({ manualMode: on }),
   setManualColor: (fixtureId, rgb) =>
     set((s) => ({ manualByFixture: { ...s.manualByFixture, [fixtureId]: rgb } })),
+  setManualMany: (fixtureIds, rgb) =>
+    set((s) => {
+      const next = { ...s.manualByFixture }
+      for (const id of fixtureIds) next[id] = rgb
+      return { manualByFixture: next, manualMode: true }
+    }),
   setManualAll: (rgb) =>
     set((s) => {
       if (rgb === null) return { manualByFixture: {} }
