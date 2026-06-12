@@ -1088,14 +1088,15 @@ export function EditorCanvas(): React.JSX.Element {
   /** Precise pick, NEAREST-first: among everything within reach of the cursor the
    *  closest stroke wins — so tightly packed 1px lines pick the one you aimed at,
    *  not whichever is on top. */
-  const hitTest = (p: Point): string | null => {
+  const hitTest = (p: Point, opts?: { locked?: boolean }): string | null => {
+    const wantLocked = opts?.locked ?? false // locked-only pass = the unlock door (right-click)
     const ctx = scratchCtx.current
     const tol = Math.max(2, 6 / viewRef.current.scale)
     let best: string | null = null
     let bd = Infinity
     for (let i = chart.shapes.length - 1; i >= 0; i--) {
       const sh = chart.shapes[i]
-      if (sh.locked) continue // locked backdrops: clicks pass straight through
+      if (!!sh.locked !== wantLocked) continue // locked backdrops: left-clicks pass through
       // other songs' ghosts are untouchable — only the active layer is editable
       if ((sh.layerId ?? chart.layers[0]?.id) !== chart.activeLayerId) continue
       const b = shapeArrayBounds(sh)
@@ -1201,9 +1202,11 @@ export function EditorCanvas(): React.JSX.Element {
       return
     }
     if (e.button === 2) {
-      // right button: click = context menu, drag = grab & move (decided on movement)
+      // right button: click = context menu, drag = grab & move (decided on movement).
+      // Locked shapes ignore left-clicks entirely, so right-click is their one
+      // remaining door — fall back to a locked-only pass to reach the unlock menu.
       const raw = toCanvasRaw(e.clientX, e.clientY)
-      const hit = hitTest(raw)
+      const hit = hitTest(raw) ?? hitTest(raw, { locked: true })
       if (hit) {
         rcPending.current = { id: hit, x: e.clientX, y: e.clientY }
         canvasRef.current?.setPointerCapture(e.pointerId)
@@ -1374,9 +1377,11 @@ export function EditorCanvas(): React.JSX.Element {
       drawRef.current()
     }
     if (rcPending.current && (e.buttons & 2) !== 0) {
-      // right-drag past the threshold = grab & move (otherwise it stays a menu click)
+      // right-drag past the threshold = grab & move (otherwise it stays a menu click);
+      // locked shapes never move — their right-click stays menu-only (the unlock door)
       const d = Math.hypot(e.clientX - rcPending.current.x, e.clientY - rcPending.current.y)
-      if (d > 4) {
+      const grabbed = useStore.getState().chart.shapes.find((s) => s.id === rcPending.current!.id)
+      if (d > 4 && !grabbed?.locked) {
         const p0 = rcPending.current
         rcPending.current = null
         const st0 = useStore.getState()
@@ -2135,16 +2140,26 @@ export function EditorCanvas(): React.JSX.Element {
               </button>
             )
           })()}
-          <button
-            style={menuBtn}
-            onClick={() => {
-              const st = useStore.getState()
-              st.setLocked(st.selectedIds, true)
-              setCtxMenu(null)
-            }}
-          >
-            ロック（キャンバスから掴めなくする・⌘L）
-          </button>
+          {(() => {
+            const lockedCount = chart.shapes.filter(
+              (s) => selectedIds.includes(s.id) && s.locked
+            ).length
+            const unlockMode = lockedCount > 0
+            return (
+              <button
+                style={menuBtn}
+                onClick={() => {
+                  const st = useStore.getState()
+                  st.setLocked(st.selectedIds, !unlockMode)
+                  setCtxMenu(null)
+                }}
+              >
+                {unlockMode
+                  ? `ロック解除（${lockedCount}個）`
+                  : 'ロック（キャンバスから掴めなくする・⌘L）'}
+              </button>
+            )
+          })()}
           <button
             style={{ ...menuBtn, color: '#e0726a' }}
             onClick={() => {
