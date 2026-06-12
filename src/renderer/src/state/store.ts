@@ -111,6 +111,9 @@ interface AppState {
   nudgeShapes: (ids: string[], dx: number, dy: number) => void
   setShapePoints: (id: string, points: Point[]) => void
   duplicateShape: (id: string) => void
+  /** The last ⌘D pair — duplicating the copy again repeats THEIR offset, so
+   *  duplicate → drag into place → ⌘D ⌘D ⌘D lays out an even run (PowerPoint style). */
+  lastDup: { srcId: string; newId: string } | null
   setUniverseData: (universe: number, data: Uint8Array) => void
 
   setUnderlay: (u: Underlay | null) => void
@@ -166,6 +169,9 @@ interface AppState {
   setSyphonName: (name: string) => void
   /** Show title — becomes the default save filename. */
   setChartName: (name: string) => void
+  /** The Keys cheat-sheet panel ("?" or the Toolbar button). */
+  helpOpen: boolean
+  setHelpOpen: (on: boolean) => void
 }
 
 /** A small sample chart (shapes patched to U0/1 so the test sender lights them). */
@@ -240,6 +246,7 @@ export const useStore = create<AppState>()((set, get) => ({
   clipboard: null,
   pasteArmed: false,
   pasteMark: null,
+  lastDup: null,
   started: initialStarted(),
   history: [],
   future: [],
@@ -654,6 +661,8 @@ export const useStore = create<AppState>()((set, get) => ({
     set((s) => ({ chart: { ...s.chart, settings: { ...s.chart.settings, glowAmount: px } } })),
   setSyphonName: (name) => set((s) => ({ chart: { ...s.chart, syphon: { name } } })),
   setChartName: (name) => set((s) => ({ chart: { ...s.chart, name } })),
+  helpOpen: false,
+  setHelpOpen: (helpOpen) => set({ helpOpen }),
   setSnap: (on) => set({ snapToPixel: on }),
   setStepPatch: (on) => set({ stepPatch: on }),
   setUnderlayMask: (patch) =>
@@ -760,11 +769,26 @@ export const useStore = create<AppState>()((set, get) => ({
     set((s) => {
       const sh = s.chart.shapes.find((x) => x.id === id)
       if (!sh) return {}
+      // duplicating the copy from the last ⌘D repeats that pair's offset — drag the
+      // first copy into place, then ⌘D ⌘D ⌘D continues the run at the same pitch
+      let dx = 10
+      let dy = 10
+      if (s.lastDup && s.lastDup.newId === id) {
+        const src = s.chart.shapes.find((x) => x.id === s.lastDup!.srcId)
+        if (src && src.points[0] && sh.points[0]) {
+          const px = sh.points[0].x - src.points[0].x
+          const py = sh.points[0].y - src.points[0].y
+          if (px !== 0 || py !== 0) {
+            dx = px
+            dy = py
+          }
+        }
+      }
       const nid = newId('shape')
       const copy: Shape = {
         ...sh,
         id: nid,
-        points: sh.points.map((p) => ({ x: p.x + 10, y: p.y + 10 })),
+        points: sh.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
         fixtureId: undefined
       }
       let fixtures = s.chart.fixtures
@@ -777,7 +801,8 @@ export const useStore = create<AppState>()((set, get) => ({
       return {
         chart: { ...s.chart, shapes: [...s.chart.shapes, copy], fixtures },
         selectedId: nid,
-        selectedIds: [nid]
+        selectedIds: [nid],
+        lastDup: { srcId: id, newId: nid }
       }
     })
   }

@@ -258,3 +258,46 @@ describe('layers (song pages)', () => {
     expect(useStore.getState().chart.shapes.find((s) => s.id === 'bar1')).toBeTruthy()
   })
 })
+
+describe('duplicate run (cmd-D rhythm)', () => {
+  beforeEach(() => {
+    useStore.setState({
+      chart: seed(),
+      selectedId: null,
+      selectedIds: [],
+      clipboard: null,
+      pasteArmed: false,
+      lastDup: null,
+      history: [],
+      future: [],
+      histTag: null,
+      histAt: 0
+    })
+  })
+
+  it('first duplicate lands at +10,+10', () => {
+    useStore.getState().duplicateShape('bar1')
+    const st = useStore.getState()
+    const copy = st.chart.shapes[st.chart.shapes.length - 1]
+    expect(copy.points[0]).toEqual({ x: 20.5, y: 20.5 })
+    expect(st.lastDup).toEqual({ srcId: 'bar1', newId: copy.id })
+  })
+
+  it('duplicating the dragged copy repeats the pair offset (even run)', () => {
+    useStore.getState().duplicateShape('bar1')
+    let st = useStore.getState()
+    const copy = st.chart.shapes[st.chart.shapes.length - 1]
+    // drag the copy 30 right of the original (y unchanged)
+    st.setShapePoints(
+      copy.id,
+      st.chart.shapes
+        .find((s) => s.id === 'bar1')!
+        .points.map((p) => ({ x: p.x + 30, y: p.y }))
+    )
+    useStore.getState().duplicateShape(copy.id)
+    st = useStore.getState()
+    const third = st.chart.shapes[st.chart.shapes.length - 1]
+    // third continues the run: another +30,0 from the copy
+    expect(third.points[0]).toEqual({ x: 70.5, y: 10.5 })
+  })
+})

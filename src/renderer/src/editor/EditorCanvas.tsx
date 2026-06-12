@@ -30,9 +30,16 @@ import {
   salientOfGroup,
   snap1D,
   snapMoveDelta,
+  buildGapCandidates,
+  mergeCand,
   softAxis,
-  type SnapCand
+  type SnapCand,
+  type Salient
 } from './snapping'
+
+/** Vertex / corner / edge handles are POINTS: they may snap to either family. */
+const flatX = (c: SnapCand): number[] => [...c.xs, ...(c.cxs ?? [])]
+const flatY = (c: SnapCand): number[] => [...c.ys, ...(c.cys ?? [])]
 import { cleanPaintStroke, regenChain } from './stroke-fit'
 import { findDrawableRegions, type Region } from './regions'
 import {
@@ -127,7 +134,7 @@ type Interaction =
       origs: Point[][]
       forceSnap?: boolean
       cand?: SnapCand // alignment targets (single-shape moves only)
-      sal?: { xs: number[]; ys: number[] }
+      sal?: Salient
     }
   | { kind: 'vertex'; id: string; idx: number; cand?: SnapCand }
   | { kind: 'corner'; id: string; anchor: Point; aspect: number; cand?: SnapCand }
@@ -351,10 +358,7 @@ export function EditorCanvas(): React.JSX.Element {
     () => centerCandidates(regions, chart.canvas),
     [regions, chart.canvas]
   )
-  const withCenters = (c: SnapCand): SnapCand => ({
-    xs: [...c.xs, ...centerCand.xs],
-    ys: [...c.ys, ...centerCand.ys]
-  })
+  const withCenters = (c: SnapCand): SnapCand => mergeCand(c, centerCand)
 
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -954,6 +958,11 @@ export function EditorCanvas(): React.JSX.Element {
           e.preventDefault()
           return
         }
+        if (k === '?') {
+          st.setHelpOpen(!st.helpOpen)
+          e.preventDefault()
+          return
+        }
         const quick: Record<string, Parameters<typeof st.setTool>[0]> = {
           v: 'select',
           p: 'pixelpen',
@@ -1208,9 +1217,14 @@ export function EditorCanvas(): React.JSX.Element {
       forceSnap,
       // groups align as one body (union bbox + centre); island/canvas centres are
       // always on the candidate list so parts can click onto panel middles
-      cand: withCenters(
-        buildCandidates(chart.shapes, single ? single.id : new Set(shs.map((s) => s.id)))
-      ),
+      cand: (() => {
+        const ex = single ? single.id : new Set(shs.map((s) => s.id))
+        // edges + centres + island middles + equal-spacing rhythm
+        return mergeCand(
+          withCenters(buildCandidates(chart.shapes, ex)),
+          buildGapCandidates(chart.shapes, ex)
+        )
+      })(),
       sal: single ? salientOf(single) : salientOfGroup(shs)
     }
     return true
@@ -1437,6 +1451,11 @@ export function EditorCanvas(): React.JSX.Element {
         const free = it.forceSnap ? false : e.metaKey || e.altKey // Cmd/Opt = no pixel snap
         let dx = raw.x - it.sx
         let dy = raw.y - it.sy
+        // Shift while moving = straight horizontal / vertical slide (PowerPoint style)
+        if (e.shiftKey) {
+          if (Math.abs(dx) >= Math.abs(dy)) dy = 0
+          else dx = 0
+        }
         let gx: number | null = null
         let gy: number | null = null
         if (!free && snapToPixel && it.cand && it.sal) {
@@ -1470,8 +1489,8 @@ export function EditorCanvas(): React.JSX.Element {
           let gx: number | null = null
           let gy: number | null = null
           if (it.cand) {
-            const sx2 = snap1D(cell.x + 0.5, it.cand.xs, tolA, 0, 0, false)
-            const sy2 = snap1D(cell.y + 0.5, it.cand.ys, tolA, 0, 0, false)
+            const sx2 = snap1D(cell.x + 0.5, flatX(it.cand), tolA, 0, 0, false)
+            const sy2 = snap1D(cell.y + 0.5, flatY(it.cand), tolA, 0, 0, false)
             gx = sx2.guide
             gy = sy2.guide
             cell = { x: Math.floor(sx2.v), y: Math.floor(sy2.v) }
@@ -1499,8 +1518,8 @@ export function EditorCanvas(): React.JSX.Element {
         } else if (snapToPixel && !(e.metaKey || e.altKey)) {
           // soft snaps: align to other shapes first, then gently towards H/V/45°
           if (it.cand) {
-            const sx2 = snap1D(cell.x + 0.5, it.cand.xs, tolA, 0, 0, false)
-            const sy2 = snap1D(cell.y + 0.5, it.cand.ys, tolA, 0, 0, false)
+            const sx2 = snap1D(cell.x + 0.5, flatX(it.cand), tolA, 0, 0, false)
+            const sy2 = snap1D(cell.y + 0.5, flatY(it.cand), tolA, 0, 0, false)
             gx = sx2.guide
             gy = sy2.guide
             cell = { x: Math.floor(sx2.v), y: Math.floor(sy2.v) }
@@ -1534,8 +1553,8 @@ export function EditorCanvas(): React.JSX.Element {
         let gx: number | null = null
         let gy: number | null = null
         if (!free && snapToPixel && it.cand) {
-          const sx2 = snap1D(raw.x, it.cand.xs, tolA, 10, 2, true)
-          const sy2 = snap1D(raw.y, it.cand.ys, tolA, 10, 2, true)
+          const sx2 = snap1D(raw.x, flatX(it.cand), tolA, 10, 2, true)
+          const sy2 = snap1D(raw.y, flatY(it.cand), tolA, 10, 2, true)
           np = { x: sx2.v, y: sy2.v }
           gx = sx2.guide
           gy = sy2.guide
@@ -1564,7 +1583,7 @@ export function EditorCanvas(): React.JSX.Element {
         if (it.dir === 'e' || it.dir === 'w') {
           let nx = free ? raw.x : Math.round(raw.x)
           if (!free && snapToPixel && it.cand) {
-            const s2 = snap1D(raw.x, it.cand.xs, tolA, 10, 2, true)
+            const s2 = snap1D(raw.x, flatX(it.cand), tolA, 10, 2, true)
             nx = s2.v
             gx = s2.guide
           }
@@ -1573,7 +1592,7 @@ export function EditorCanvas(): React.JSX.Element {
         } else {
           let ny = free ? raw.y : Math.round(raw.y)
           if (!free && snapToPixel && it.cand) {
-            const s2 = snap1D(raw.y, it.cand.ys, tolA, 10, 2, true)
+            const s2 = snap1D(raw.y, flatY(it.cand), tolA, 10, 2, true)
             ny = s2.v
             gy = s2.guide
           }
@@ -1591,8 +1610,8 @@ export function EditorCanvas(): React.JSX.Element {
         let gx: number | null = null
         let gy: number | null = null
         if (!free && snapToPixel && it.cand) {
-          const sx2 = snap1D(raw.x, it.cand.xs, tolA, 10, 2, true)
-          const sy2 = snap1D(raw.y, it.cand.ys, tolA, 10, 2, true)
+          const sx2 = snap1D(raw.x, flatX(it.cand), tolA, 10, 2, true)
+          const sy2 = snap1D(raw.y, flatY(it.cand), tolA, 10, 2, true)
           np = { x: sx2.v, y: sy2.v }
           gx = sx2.guide
           gy = sy2.guide

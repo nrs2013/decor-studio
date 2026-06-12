@@ -10,6 +10,7 @@ import { LiveView } from './output/LiveView'
 import { StatusBar } from './ui/StatusBar'
 import { StartScreen } from './ui/StartScreen'
 import { ManualFaders } from './test/ManualFaders'
+import { HelpPanel } from './ui/HelpPanel'
 import { useStore } from './state/store'
 import { useDmxBridge } from './state/dmx-bridge'
 import { useMask } from './state/use-mask'
@@ -125,6 +126,7 @@ function useDropGuard(): void {
 function EditorApp(): React.JSX.Element {
   const mode = useStore((s) => s.mode)
   const started = useStore((s) => s.started)
+  const helpOpen = useStore((s) => s.helpOpen)
   const [testOpen, setTestOpen] = useState(false)
   useDmxBridge()
   useMask()
@@ -173,6 +175,7 @@ function EditorApp(): React.JSX.Element {
       )}
       <StatusBar />
       {testOpen && <ManualFaders onClose={() => setTestOpen(false)} />}
+      {helpOpen && <HelpPanel />}
     </div>
   )
 }
